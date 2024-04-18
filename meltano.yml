@@ -6,8 +6,8 @@ environments:
 - name: test
 plugins:
   extractors:
-  - name: "tap-appstore"
-    namespace: "tap_appstore"
+  - name: tap-appstore
+    namespace: tap_appstore
     pip_url: -e .
     capabilities:
     - state
@@ -16,16 +16,15 @@ plugins:
     - about
     - stream-maps
     config:
-      start_date: '2010-01-01T00:00:00Z'
-    settings:
-    # TODO: To configure using Meltano, declare settings and their types here:
-    - name: username
-    - name: password
-      kind: password
-      sensitive: true
-    - name: start_date
-      value: '2010-01-01T00:00:00Z'
+      start_date: $TAP_APPSTORE_START_DATE
+      key_id: $TAP_APPSTORE_KEY_ID
+      key_file: $TAP_APPSTORE_KEY_FILE
+      issuer_id: $TAP_APPSTORE_ISSUER_ID
+      vendor: $TAP_APPSTORE_VENDOR
   loaders:
   - name: target-jsonl
     variant: andyh1203
     pip_url: target-jsonl
+  - name: target-parquet
+    variant: automattic
+    pip_url: git+https://github.com/Automattic/target-parquet.git
