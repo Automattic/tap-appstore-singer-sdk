@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import Any, Callable, Iterable
+from applaud.connection import Connection
 
+from datetime import datetime
+import logging
 import requests
 from singer_sdk.authenticators import APIKeyAuthenticator
 from singer_sdk.helpers.jsonpath import extract_jsonpath
@@ -18,12 +22,59 @@ else:
 
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
-# TODO: Delete this is if not using json files for schema definition
-SCHEMAS_DIR = importlib_resources.files(__package__) / "schemas"
-
+logger = logging.getLogger(__name__)
 
 class AppStoreStream(RESTStream):
     """AppStore stream class."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.connection = self.setup_connection()
+
+    def setup_connection(self):
+        """Set up the API connection using provided configuration."""
+        KEY_ID = self.config['key_id']
+        ISSUER_ID = self.config['issuer_id']
+        PATH_TO_KEY = os.path.expanduser(self.config['key_file'])
+
+        with open(PATH_TO_KEY, 'r') as f:
+            PRIVATE_KEY = f.read()
+
+        return Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
+
+    def get_records(self, endpoint):
+        """Generic method to fetch records using the specified API endpoint."""
+        try:
+            response = endpoint.get()
+            for chunk in response.iter_decompress():
+                lines = chunk.decode('utf-8').splitlines()
+                for line in lines:
+                    if line.strip():
+                        record = self.parse_report_line(line.strip())
+                        if record:
+                            yield record
+        except Exception as e:
+            logger.error(f"Failed to fetch reports: {str(e)}")
+
+    def parse_report_line(self, line: str):
+        """To be implemented by subclasses: Parses a single line of raw report data."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @staticmethod
+    def convert_date(date_str, date_format='%Y-%m-%d'):
+        """Converts date string to ISO format based on the given date format, defaulting to '%Y-%m-%d'.
+           Returns None if the date string is invalid or empty.
+        """
+        date_str = date_str.strip()
+        if not date_str:
+            logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
+            return None
+
+        try:
+            return datetime.strptime(date_str, date_format).isoformat()
+        except ValueError as e:
+            logger.error(f"Date conversion error for date: '{date_str}' with format '{date_format}' | Error: {str(e)}")
+            return None
 
     @property
     def url_base(self) -> str:

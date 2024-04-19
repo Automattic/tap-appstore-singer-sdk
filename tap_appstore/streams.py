@@ -10,11 +10,12 @@ from singer_sdk import Stream, typing as th
 import datetime
 from datetime import datetime
 import logging
+from tap_appstore import client
 
 logger = logging.getLogger(__name__)
 
 
-class SalesReportStream(Stream):
+class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
     #primary_keys = ["id"]
     schema = th.PropertiesList(
@@ -47,60 +48,33 @@ class SalesReportStream(Stream):
         th.Property("client", th.StringType),
         th.Property("order_type", th.StringType)
     ).to_dict()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def get_records(self, *args, **kwargs):
-        """Fetch sales reports from the App Store Connect API and save raw data."""
-        KEY_ID = self.config['key_id']
-        ISSUER_ID = self.config['issuer_id']
-        VENDOR_NUMBER = self.config['vendor']  # Updated to use the configuration
-        PATH_TO_KEY = os.path.expanduser(self.config['key_file'])
+        """Overrides the generic get_records to specify the endpoint."""
 
-        with open(PATH_TO_KEY, 'r') as f:
-            PRIVATE_KEY = f.read()
+        logger.info(f"Vendor Number: {self.config['vendor_number']}")
 
-        # Create the Connection
-        connection = Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
-        # Prepare and make the API request using the dynamically set report date
+        endpoint = self.connection.sales_reports().filter(
+            frequency=SalesReportsEndpoint.Frequency.DAILY,
+            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
+            report_type=SalesReportsEndpoint.ReportType.SALES,  # Change as needed for this stream
+            report_date=self.config.get('start_date', '2024-04-01'),
+            vendor_number=self.config['vendor_number'],
+        )
+        # Now call the generic get_records from the parent class
+        return super().get_records(endpoint)
 
-        try:
-            response = connection.sales_reports().filter(
-                report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-                report_type=SalesReportsEndpoint.ReportType.SALES,
-                frequency=SalesReportsEndpoint.Frequency.DAILY,
-                report_date=self.config.get('start_date', '2024-04-01'),
-                vendor_number=VENDOR_NUMBER
-            ).get()
 
-            # Process response directly if it is a stream or a large string
-            # Assume response can be iterated or read directly into memory
-            for chunk in response.iter_decompress():
-                # Assume each chunk can contain multiple lines, split them
-                lines = chunk.decode('utf-8').splitlines()
-                for line in lines:
-                    if line.strip():  # Ensure the line is not just whitespace
-                        record = self.parse_sales_report_line(line.strip())
-                        if record:
-                            yield record
-
-        except Exception as e:
-            logger.error(f"Failed to fetch sales reports: {str(e)}")
-
-    def parse_sales_report_line(self, line):
+    def parse_report_line(self, line):
         """Parses a single line of raw sales report data, handling optional fields."""
         fields = line.split('\t')
         # Ensure there are at least the number of required fields (assuming first 15 are required)
         if fields[0] == 'Provider' or len(fields) < 15:
             logger.warning(f"Skipping incomplete record: {line}")
             return None
-
-        def convert_date(date_str):
-            try:
-                return datetime.strptime(date_str, '%m/%d/%Y').isoformat()
-            except ValueError as e:
-                logger.error(f"Date conversion error for date: {date_str} | Error: {str(e)}")
-                return None
 
         try:
             # Use `.get()` with default values for optional fields
@@ -114,8 +88,8 @@ class SalesReportStream(Stream):
                 "product_type_identifier": fields[6],
                 "units": int(fields[7]),
                 "developer_proceeds": float(fields[8]),
-                "begin_date": convert_date(fields[9]),
-                "end_date": convert_date(fields[10]),
+                "begin_date": self.convert_date(fields[9], '%m/%d/%Y'),
+                "end_date": self.convert_date(fields[10], '%m/%d/%Y'),
                 "customer_currency": fields[11],
                 "country_code": fields[12],
                 "currency_of_proceeds": fields[13],
@@ -139,7 +113,7 @@ class SalesReportStream(Stream):
             return None
 
 
-class SubscriberReportStream(Stream):
+class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
     #primary_keys = ["_line_id"]
     schema = th.PropertiesList(
@@ -175,57 +149,30 @@ class SubscriberReportStream(Stream):
         super().__init__(*args, **kwargs)
 
     def get_records(self, *args, **kwargs):
-        """Fetch subscriber reports from the App Store Connect API and yield records."""
-        KEY_ID = self.config['key_id']
-        ISSUER_ID = self.config['issuer_id']
-        VENDOR_NUMBER = self.config['vendor']  # Updated to use the configuration
-        PATH_TO_KEY = os.path.expanduser(self.config['key_file'])
+        """Overrides the generic get_records to specify the endpoint for subscriber reports."""
 
-        with open(PATH_TO_KEY, 'r') as f:
-            PRIVATE_KEY = f.read()
+        logger.info(f"Vendor Number: {self.config['vendor_number']}")
+        endpoint = self.connection.sales_reports().filter(
+            frequency=SalesReportsEndpoint.Frequency.DAILY,
+            report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
+            report_type=SalesReportsEndpoint.ReportType.SUBSCRIBER,
+            report_date=self.config.get('start_date', '2024-02-01'),
+            vendor_number=self.config['vendor_number'],
+            version="1_3",
+        )
+        # Now call the generic get_records from the parent class
+        return super().get_records(endpoint)
 
-        # Create the Connection
-        connection = Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
-
-        try:
-            response = connection.sales_reports().filter(
-                frequency=SalesReportsEndpoint.Frequency.DAILY,
-                report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
-                report_type=SalesReportsEndpoint.ReportType.SUBSCRIBER,
-                report_date=self.config.get('start_date', '2024-02-01'),
-                vendor_number=VENDOR_NUMBER,
-                version='1_3'
-            ).get()
-
-            for chunk in response.iter_decompress():
-                lines = chunk.decode('utf-8').splitlines()
-                for line in lines:
-                    if line.strip():
-                        record = self.parse_subscriber_report_line(line.strip())
-                        if record:
-                            logger.warning(record)
-                            yield record
-        except Exception as e:
-            logger.error(f"Failed to fetch subscriber reports: {str(e)}")
-
-    def parse_subscriber_report_line(self, line):
+    def parse_report_line(self, line):
         """Parses a single line of raw subscriber report data, handling optional fields."""
-        logger.info(line)
         fields = line.split('\t')
-        if len(fields) < 15:
+        if fields[0] == 'Event Date' or len(fields) < 15:
             logger.warning(f"Skipping incomplete record: {line}")
             return None
 
-        def convert_date(date_str):
-            try:
-                return datetime.strptime(date_str, '%Y-%m-%d').isoformat()  # Adjust format as necessary
-            except ValueError as e:
-                logger.error(f"Date conversion error for date: {date_str} | Error: {str(e)}")
-                return None
-
         try:
             return {
-                "event_date": convert_date(fields[0]),
+                "event_date": self.convert_date(fields[0], '%Y-%m-%d'),
                 "app_name": fields[1],
                 "app_apple_id": int(fields[2]),
                 "subscription_name": fields[3],
