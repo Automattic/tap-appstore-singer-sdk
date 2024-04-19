@@ -202,3 +202,4 @@ class SubscriberReportStream(client.AppStoreStream):
         except ValueError as e:  # Handle conversion errors for numbers and other types
             logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
             return None
+        
