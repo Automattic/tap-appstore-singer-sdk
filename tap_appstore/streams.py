@@ -50,7 +50,6 @@ class SalesReportStream(Stream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.get_records()
 
     def get_records(self, *args, **kwargs):
         """Fetch sales reports from the App Store Connect API and save raw data."""
