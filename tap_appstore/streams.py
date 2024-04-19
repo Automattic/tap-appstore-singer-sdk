@@ -139,3 +139,119 @@ class SalesReportStream(Stream):
             return None
 
 
+class SubscriberReportStream(Stream):
+    name = "subscriber_reports"
+    #primary_keys = ["_line_id"]
+    schema = th.PropertiesList(
+        th.Property("event_date", th.DateTimeType),
+        th.Property("app_name", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
+        th.Property("subscription_name", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
+        th.Property("standard_subscription_duration", th.StringType),
+        th.Property("promotional_offer_name", th.StringType),
+        th.Property("promotional_offer_id", th.StringType),
+        th.Property("subscription_offer_type", th.StringType),
+        th.Property("subscription_offer_duration", th.StringType),
+        th.Property("marketing_opt_in_duration", th.StringType),
+        th.Property("customer_price", th.NumberType),
+        th.Property("customer_currency", th.StringType),
+        th.Property("developer_proceeds", th.NumberType),
+        th.Property("proceeds_currency", th.StringType),
+        th.Property("preserved_pricing", th.StringType),
+        th.Property("proceeds_reason", th.StringType),
+        th.Property("client", th.StringType),
+        th.Property("device", th.StringType),
+        th.Property("country", th.StringType),
+        th.Property("subscriber_id", th.StringType),
+        th.Property("subscriber_id_reset", th.StringType),
+        th.Property("refund", th.StringType),
+        th.Property("purchase_date", th.StringType),
+        th.Property("units", th.IntegerType)
+    ).to_dict()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_records(self, *args, **kwargs):
+        """Fetch subscriber reports from the App Store Connect API and yield records."""
+        KEY_ID = self.config['key_id']
+        ISSUER_ID = self.config['issuer_id']
+        VENDOR_NUMBER = self.config['vendor']  # Updated to use the configuration
+        PATH_TO_KEY = os.path.expanduser(self.config['key_file'])
+
+        with open(PATH_TO_KEY, 'r') as f:
+            PRIVATE_KEY = f.read()
+
+        # Create the Connection
+        connection = Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
+
+        try:
+            response = connection.sales_reports().filter(
+                frequency=SalesReportsEndpoint.Frequency.DAILY,
+                report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
+                report_type=SalesReportsEndpoint.ReportType.SUBSCRIBER,
+                report_date=self.config.get('start_date', '2024-02-01'),
+                vendor_number=VENDOR_NUMBER,
+                version='1_3'
+            ).get()
+
+            for chunk in response.iter_decompress():
+                lines = chunk.decode('utf-8').splitlines()
+                for line in lines:
+                    if line.strip():
+                        record = self.parse_subscriber_report_line(line.strip())
+                        if record:
+                            logger.warning(record)
+                            yield record
+        except Exception as e:
+            logger.error(f"Failed to fetch subscriber reports: {str(e)}")
+
+    def parse_subscriber_report_line(self, line):
+        """Parses a single line of raw subscriber report data, handling optional fields."""
+        logger.info(line)
+        fields = line.split('\t')
+        if len(fields) < 15:
+            logger.warning(f"Skipping incomplete record: {line}")
+            return None
+
+        def convert_date(date_str):
+            try:
+                return datetime.strptime(date_str, '%Y-%m-%d').isoformat()  # Adjust format as necessary
+            except ValueError as e:
+                logger.error(f"Date conversion error for date: {date_str} | Error: {str(e)}")
+                return None
+
+        try:
+            return {
+                "event_date": convert_date(fields[0]),
+                "app_name": fields[1],
+                "app_apple_id": int(fields[2]),
+                "subscription_name": fields[3],
+                "subscription_apple_id": int(fields[4]),
+                "subscription_group_id": int(fields[5]),
+                "standard_subscription_duration": fields[6],
+                "promotional_offer_name": fields[7],
+                "promotional_offer_id": fields[8],
+                "subscription_offer_type": fields[9],
+                "subscription_offer_duration": fields[10],
+                "marketing_opt_in_duration": fields[11],
+                "customer_price": float(fields[12]) if fields[12] else None,
+                "customer_currency": fields[13],
+                "developer_proceeds": float(fields[14]) if fields[14] else None,
+                "proceeds_currency": fields[15],
+                "preserved_pricing": fields[16],
+                "proceeds_reason": fields[17],
+                "client": fields[18],
+                "device": fields[19],
+                "country": fields[20],
+                "subscriber_id": fields[21],
+                "subscriber_id_reset": fields[22],
+                "refund": fields[23],
+                "purchase_date": fields[24],
+                "units": int(fields[25]) if fields[25] else 0
+            }
+        except ValueError as e:  # Handle conversion errors for numbers and other types
+            logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
+            return None
