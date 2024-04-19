@@ -68,8 +68,8 @@ class SalesReportStream(Stream):
             response = connection.sales_reports().filter(
                 report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
                 report_type=SalesReportsEndpoint.ReportType.SALES,
-                frequency=SalesReportsEndpoint.Frequency.MONTHLY,
-                report_date=self.config.get('start_date', '2023-12'),
+                frequency=SalesReportsEndpoint.Frequency.DAILY,
+                report_date=self.config.get('start_date', '2024-04-01'),
                 vendor_number=VENDOR_NUMBER
             ).get()
 
