@@ -74,21 +74,16 @@ class SalesReportStream(Stream):
                 vendor_number=VENDOR_NUMBER
             ).get()
 
-            # Assuming response is saved in a compressed text format
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                temp_file_name = temp_file.name
-            response.save(temp_file_name, decompress=True)
-
-            # Save raw data to a separate file for analysis
-            with open(temp_file_name, 'r') as infile, open('raw_sales_reports.txt', 'w') as outfile:
-                for line in infile:
-                    record = self.parse_sales_report_line(line.strip())
-                    if record:
-                        yield record  # Yield the structured record
-                    outfile.write(line)
-
-            # Clean up the temporary file
-            os.remove(temp_file_name)
+            # Process response directly if it is a stream or a large string
+            # Assume response can be iterated or read directly into memory
+            for chunk in response.iter_decompress():
+                # Assume each chunk can contain multiple lines, split them
+                lines = chunk.decode('utf-8').splitlines()
+                for line in lines:
+                    if line.strip():  # Ensure the line is not just whitespace
+                        record = self.parse_sales_report_line(line.strip())
+                        if record:
+                            yield record
 
         except Exception as e:
             logger.error(f"Failed to fetch sales reports: {str(e)}")
