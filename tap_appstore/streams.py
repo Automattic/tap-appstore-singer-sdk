@@ -55,8 +55,6 @@ class SalesReportStream(client.AppStoreStream):
     def get_records(self, *args, **kwargs):
         """Overrides the generic get_records to specify the endpoint."""
 
-        logger.info(f"Vendor Number: {self.config['vendor_number']}")
-
         endpoint = self.connection.sales_reports().filter(
             frequency=SalesReportsEndpoint.Frequency.DAILY,
             report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
@@ -151,7 +149,6 @@ class SubscriberReportStream(client.AppStoreStream):
     def get_records(self, *args, **kwargs):
         """Overrides the generic get_records to specify the endpoint for subscriber reports."""
 
-        logger.info(f"Vendor Number: {self.config['vendor_number']}")
         endpoint = self.connection.sales_reports().filter(
             frequency=SalesReportsEndpoint.Frequency.DAILY,
             report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
