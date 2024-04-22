@@ -199,3 +199,85 @@ class SubscriberReportStream(client.AppStoreStream):
         except ValueError as e:  # Handle conversion errors for numbers and other types
             logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
             return None
+
+
+class SubscriptionReportStream(client.AppStoreStream):
+    name = "subscription_reports"
+    schema = th.PropertiesList(
+        th.Property("app_name", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
+        th.Property("subscription_name", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
+        th.Property("subscription_group_name", th.StringType),
+        th.Property("subscription_duration", th.StringType),
+        th.Property("subscription_offer_type", th.StringType),
+        th.Property("marketing_opt_in_duration", th.StringType),
+        th.Property("customer_price", th.NumberType),
+        th.Property("customer_currency", th.StringType),
+        th.Property("developer_proceeds", th.NumberType),
+        th.Property("proceeds_currency", th.StringType),
+        th.Property("preserved_pricing", th.StringType),
+        th.Property("proceeds_reason", th.StringType),
+        th.Property("client", th.StringType),
+        th.Property("device", th.StringType),
+        th.Property("country", th.StringType),
+        th.Property("subscriber_id", th.StringType),
+        th.Property("subscriber_id_reset", th.StringType),
+        th.Property("refund", th.StringType),
+        th.Property("purchase_date",  th.StringType),
+        th.Property("units", th.IntegerType)
+    ).to_dict()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_records(self, *args, **kwargs):
+        """Overrides the generic get_records to specify the endpoint for subscription reports."""
+
+        endpoint = self.connection.sales_reports().filter(
+            frequency=SalesReportsEndpoint.Frequency.DAILY,
+            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
+            report_type=SalesReportsEndpoint.ReportType.SUBSCRIPTION,
+            report_date=self.config.get('start_date', '2024-04-01'),
+            vendor_number=self.config['vendor_number'],
+            version="1_3",
+        )
+        return super().get_records(endpoint)
+
+    def parse_report_line(self, line):
+        """Parses a single line of raw subscription report data, handling optional fields."""
+        fields = line.split('\t')
+
+        if fields[0] == 'App Name' or len(fields) < 15:
+            logger.warning(f"Skipping incomplete record: {line}")
+            return None
+
+        try:
+            return {
+                "app_name": fields[0],
+                "app_apple_id": int(fields[1]),
+                "subscription_name": fields[2],
+                "subscription_apple_id": int(fields[3]),
+                "subscription_group_id": int(fields[4]),
+                "subscription_duration": fields[5],
+                "subscription_offer_type": fields[6],
+                "marketing_opt_in_duration": fields[7],
+                "customer_price": float(fields[8]),
+                "customer_currency": fields[9],
+                "developer_proceeds": float(fields[10]),
+                "proceeds_currency": fields[11],
+                "preserved_pricing": fields[12],
+                "proceeds_reason": fields[13],
+                "client": fields[14],
+                "device": fields[15],
+                "country": fields[16],
+                "subscriber_id": fields[17],
+                "subscriber_id_reset": fields[18],
+                "refund": fields[19],
+                "purchase_date": fields[20],
+                "units": int(fields[21])
+            }
+        except ValueError as e:
+            logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
+            return None
