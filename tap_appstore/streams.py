@@ -281,3 +281,98 @@ class SubscriptionReportStream(client.AppStoreStream):
         except ValueError as e:
             logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
             return None
+
+
+class SubscriptionEventReportStream(client.AppStoreStream):
+    name = "subscription_event_reports"
+    schema = th.PropertiesList(
+        th.Property("event_date", th.DateTimeType),
+        th.Property("event", th.StringType),
+        th.Property("app_name", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
+        th.Property("subscription_name", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
+        th.Property("standard_subscription_duration", th.StringType),
+        th.Property("promotional_offer_name", th.StringType),
+        th.Property("promotional_offer_id", th.StringType),
+        th.Property("subscription_offer_type", th.StringType),
+        th.Property("subscription_offer_duration", th.StringType),
+        th.Property("marketing_opt_in", th.StringType),
+        th.Property("marketing_opt_in_duration", th.StringType),
+        th.Property("preserved_pricing", th.StringType),
+        th.Property("proceeds_reason", th.StringType),
+        th.Property("consecutive_paid_periods", th.StringType),
+        th.Property("paid_service_days_recovered", th.StringType),
+        th.Property("original_start_date", th.DateTimeType),
+        th.Property("client", th.StringType),
+        th.Property("device", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("country", th.StringType),
+        th.Property("previous_subscription_name", th.StringType),
+        th.Property("previous_subscription_apple_id", th.StringType),
+        th.Property("days_before_canceling", th.StringType),
+        th.Property("cancellation_reason", th.StringType),
+        th.Property("days_canceled", th.IntegerType),
+        th.Property("quantity", th.IntegerType)
+    ).to_dict()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_records(self, *args, **kwargs):
+        """Overrides the generic get_records to specify the endpoint for subscription event reports."""
+        endpoint = self.connection.sales_reports().filter(
+            frequency=SalesReportsEndpoint.Frequency.DAILY,
+            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
+            report_type=SalesReportsEndpoint.ReportType.SUBSCRIPTION_EVENT,
+            report_date=self.config.get('start_date', '2024-04-01'),
+            vendor_number=self.config['vendor_number'],
+            version="1_3",
+        )
+        return super().get_records(endpoint)
+
+    def parse_report_line(self, line):
+        """Parses a single line of raw subscription event report data, handling optional fields."""
+        fields = line.split('\t')
+        logger.info(f'fields: {fields}')
+
+        if fields[0] == 'Event Date' or len(fields) < 15:  # Assuming 28 fields based on the schema.
+            logger.warning(f"Skipping incomplete record: {line}")
+            return None
+
+        try:
+            return {
+                "event_date": self.convert_date(fields[0], '%Y-%m-%d'),
+                "event": fields[1],
+                "app_name": fields[2],
+                "app_apple_id": int(fields[3]),
+                "subscription_name": fields[4],
+                "subscription_apple_id": int(fields[5]),
+                "subscription_group_id": int(fields[6]),
+                "standard_subscription_duration": fields[7],
+                "promotional_offer_name": fields[8],
+                "promotional_offer_id": fields[9],
+                "subscription_offer_type": fields[10],
+                "subscription_offer_duration": fields[11],
+                "marketing_opt_in": fields[12],
+                "marketing_opt_in_duration": fields[13],
+                "preserved_pricing": fields[14],
+                "proceeds_reason": fields[15],
+                "consecutive_paid_periods": fields[16],
+                "original_start_date": self.convert_date(fields[17], '%Y-%m-%d'),
+                "client": fields[18],
+                "device": fields[19],
+                "state": fields[20],
+                "country": fields[21],
+                "previous_subscription_name": fields[22],
+                "previous_subscription_apple_id": fields[23],
+                "days_before_canceling": fields[24],
+                "cancellation_reason": fields[25],
+                "days_canceled": int(fields[26]),
+                "quantity": int(fields[27])
+            }
+
+        except ValueError as e:
+            logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
+            return None
