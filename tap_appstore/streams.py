@@ -9,7 +9,7 @@ from applaud.endpoints.sales_reports import SalesReportsEndpoint
 from applaud.endpoints.finance_reports import FinanceReportsEndpoint
 from singer_sdk import Stream, typing as th
 import datetime
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from tap_appstore import client
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
     #primary_keys = ["id"]
+    replication_key = "begin_date"
     schema = th.PropertiesList(
         th.Property("provider", th.StringType),
         th.Property("provider_country", th.StringType),
@@ -53,18 +54,34 @@ class SalesReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_records(self, *args, **kwargs):
-        """Overrides the generic get_records to specify the endpoint."""
+    def get_records(self, context: dict = None):
+        # Initialize the start_date from the stream's state or configuration
+        start_date = self.get_starting_timestamp(context)
+        if not start_date:
+            start_date = datetime.strptime(self.config.get('start_date', '2024-04-01'), '%Y-%m-%d')
 
-        endpoint = self.connection.sales_reports().filter(
-            frequency=SalesReportsEndpoint.Frequency.DAILY,
-            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-            report_type=SalesReportsEndpoint.ReportType.SALES,  # Change as needed for this stream
-            report_date=self.config.get('start_date', '2024-04-01'),
-            vendor_number=self.config['vendor_number'],
-        )
-        # Now call the generic get_records from the parent class
-        return super().get_records(endpoint)
+        # Ensure start_date is naive
+        start_date = start_date.replace(tzinfo=None)
+
+        # Make 'today' naive
+        today = datetime.now().replace(tzinfo=None)
+
+        while start_date <= today:
+            endpoint = self.connection.sales_reports().filter(
+                frequency=SalesReportsEndpoint.Frequency.DAILY,
+                report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
+                report_type=SalesReportsEndpoint.ReportType.SALES,
+                report_date=start_date.strftime('%Y-%m-%d'),
+                vendor_number=self.config['vendor_number'],
+            )
+
+            for record in super().get_records(endpoint):
+                yield record
+
+            # Increment the date and update the state
+            start_date += timedelta(days=1)
+            self.stream_state['begin_date'] = start_date.strftime('%Y-%m-%d')
+            self.logger.info(f"Updating state, new start_date is {self.stream_state['begin_date']}")
 
 
     def parse_report_line(self, line):
