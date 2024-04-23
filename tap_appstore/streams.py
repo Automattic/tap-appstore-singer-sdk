@@ -6,6 +6,7 @@ import tempfile
 import os
 from applaud.connection import Connection
 from applaud.endpoints.sales_reports import SalesReportsEndpoint
+from applaud.endpoints.finance_reports import FinanceReportsEndpoint
 from singer_sdk import Stream, typing as th
 import datetime
 from datetime import datetime
@@ -313,8 +314,8 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("previous_subscription_apple_id", th.StringType),
         th.Property("days_before_canceling", th.StringType),
         th.Property("cancellation_reason", th.StringType),
-        th.Property("days_canceled", th.IntegerType),
-        th.Property("quantity", th.IntegerType)
+        th.Property("days_canceled", th.StringType),
+        th.Property("quantity", th.StringType)
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
@@ -335,7 +336,6 @@ class SubscriptionEventReportStream(client.AppStoreStream):
     def parse_report_line(self, line):
         """Parses a single line of raw subscription event report data, handling optional fields."""
         fields = line.split('\t')
-        logger.info(f'fields: {fields}')
 
         if fields[0] == 'Event Date' or len(fields) < 15:  # Assuming 28 fields based on the schema.
             logger.warning(f"Skipping incomplete record: {line}")
@@ -369,10 +369,77 @@ class SubscriptionEventReportStream(client.AppStoreStream):
                 "previous_subscription_apple_id": fields[23],
                 "days_before_canceling": fields[24],
                 "cancellation_reason": fields[25],
-                "days_canceled": int(fields[26]),
-                "quantity": int(fields[27])
+                "days_canceled": fields[26],
+                "quantity": fields[27]
             }
 
+        except ValueError as e:
+            logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
+            return None
+
+
+class FinancialReportStream(client.AppStoreStream):
+    name = "financial_reports"
+    schema = th.PropertiesList(
+        th.Property("start_date", th.DateTimeType),
+        th.Property("end_date", th.DateTimeType),
+        th.Property("vendor_identifier", th.StringType),
+        th.Property("quantity", th.IntegerType),
+        th.Property("partner_share", th.StringType),
+        th.Property("extended_partner_share", th.StringType),
+        th.Property("partner_share_currency", th.StringType),
+        th.Property("sales_or_return", th.StringType),
+        th.Property("apple_identifier", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("product_type_identifier", th.StringType),
+        th.Property("country_of_sale", th.StringType),
+        th.Property("pre_order_flag", th.StringType),
+        th.Property("promo_code", th.StringType),
+        th.Property("customer_price", th.StringType),
+        th.Property("customer_currency", th.StringType)
+    ).to_dict()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_records(self, *args, **kwargs):
+        """Fetches financial report records using the specified endpoint."""
+        endpoint = self.connection.finance_reports().filter(
+            region_code=self.config.get('region_code', 'US'),
+            report_date='2024-02',
+            report_type=FinanceReportsEndpoint.ReportType.FINANCIAL,
+            vendor_number=self.config['vendor_number']
+        )
+        return super().get_records(endpoint)
+
+    def parse_report_line(self, line):
+        """Parses a single line of raw financial report data."""
+        fields = line.split('\t')
+        logger.info(f'fields: {fields}')
+
+        if fields[0] == 'Start Date' or len(fields) < 14:
+            logger.warning(f"Skipping incomplete record: {line}")
+            return None
+
+        try:
+            return {
+                "start_date": self.convert_date(fields[0], '%d/%m/%Y'),
+                "end_date": self.convert_date(fields[1], '%d/%m/%Y'),
+                "vendor_identifier": fields[4],
+                "quantity": int(fields[5]),
+                "partner_share": fields[6],
+                "extended_partner_share": fields[7],
+                "partner_share_currency": fields[8],
+                "sales_or_return": fields[9],
+                "apple_identifier": fields[10],
+                "title": fields[11],
+                "product_type_identifier": fields[12],
+                "country_of_sale": fields[17],
+                "pre_order_flag": fields[18],
+                "promo_code": fields[19],
+                "customer_price": fields[20],
+                "customer_currency": fields[21]
+            }
         except ValueError as e:
             logger.error(f"Error parsing line due to type conversion: {line} | Error: {str(e)}")
             return None
