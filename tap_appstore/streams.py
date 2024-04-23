@@ -10,6 +10,7 @@ from applaud.endpoints.finance_reports import FinanceReportsEndpoint
 from singer_sdk import Stream, typing as th
 import datetime
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import logging
 from tap_appstore import client
 
@@ -374,6 +375,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 class FinancialReportStream(client.AppStoreStream):
     name = "financial_reports"
+    replication_key = "start_date"
     schema = th.PropertiesList(
         th.Property("start_date", th.DateTimeType),
         th.Property("end_date", th.DateTimeType),
@@ -396,15 +398,18 @@ class FinancialReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_records(self, *args, **kwargs):
-        """Fetches financial report records using the specified endpoint."""
-        endpoint = self.connection.finance_reports().filter(
+    def setup_endpoint(self, start_date):
+        month_str = start_date.strftime('%Y-%m')
+        return self.connection.finance_reports().filter(
             region_code=self.config.get('region_code', 'US'),
-            report_date='2024-02',
+            report_date=month_str,
             report_type=FinanceReportsEndpoint.ReportType.FINANCIAL,
             vendor_number=self.config['vendor_number']
         )
-        return super().get_records(endpoint)
+
+    def increment_date(self, date):
+        """Increment date by one month."""
+        return date + relativedelta(months=1)
 
     def parse_report_line(self, line):
         """Parses a single line of raw financial report data."""
@@ -417,8 +422,8 @@ class FinancialReportStream(client.AppStoreStream):
 
         try:
             return {
-                "start_date": self.convert_date(fields[0], '%d/%m/%Y'),
-                "end_date": self.convert_date(fields[1], '%d/%m/%Y'),
+                "start_date": self.convert_date(fields[0], '%m/%d/%Y'),
+                "end_date": self.convert_date(fields[1], '%m/%d/%Y'),
                 "vendor_identifier": fields[4],
                 "quantity": int(fields[5]),
                 "partner_share": fields[6],
