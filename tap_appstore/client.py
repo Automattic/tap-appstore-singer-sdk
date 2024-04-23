@@ -67,8 +67,8 @@ class AppStoreStream(RESTStream):
 
     def update_stream_state(self, date):
         """Update the stream state with the new date."""
-        self.stream_state['begin_date'] = date.strftime('%Y-%m-%d')
-        self.logger.info(f"Updating state, new start date is {self.stream_state['begin_date']}")
+        self.stream_state['start_date'] = date.strftime('%Y-%m-%d')
+        self.logger.info(f"Updating state, new start date is {self.stream_state['start_date']}")
 
     def get_records(self, context: dict = None):
         start_date = self.get_start_date(default_date='2024-01-01')
