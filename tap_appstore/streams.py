@@ -63,10 +63,10 @@ class SalesReportStream(client.AppStoreStream):
         # Ensure start_date is naive
         start_date = start_date.replace(tzinfo=None)
 
-        # Make 'today' naive
-        today = datetime.now().replace(tzinfo=None)
+        # Define 'yesterday' as the upper limit for fetching data
+        yesterday = datetime.now().replace(tzinfo=None) - timedelta(days=1)
 
-        while start_date <= today:
+        while start_date <= yesterday:
             endpoint = self.connection.sales_reports().filter(
                 frequency=SalesReportsEndpoint.Frequency.DAILY,
                 report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
@@ -78,7 +78,6 @@ class SalesReportStream(client.AppStoreStream):
             for record in super().get_records(endpoint):
                 yield record
 
-            # Increment the date and update the state
             start_date += timedelta(days=1)
             self.stream_state['begin_date'] = start_date.strftime('%Y-%m-%d')
             self.logger.info(f"Updating state, new start_date is {self.stream_state['begin_date']}")
