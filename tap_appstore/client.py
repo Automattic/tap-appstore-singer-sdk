@@ -7,7 +7,7 @@ import sys
 from typing import Any, Callable, Iterable
 from applaud.connection import Connection
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import requests
 from singer_sdk.authenticators import APIKeyAuthenticator
@@ -42,23 +42,67 @@ class AppStoreStream(RESTStream):
 
         return Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
 
-    def get_records(self, endpoint):
-        """Generic method to fetch records using the specified API endpoint."""
+    def get_start_date(self, date_format='%Y-%m-%d', default_date='2024-01-01'):
+        """Retrieve the configured start date, formatted as specified."""
+        start_date_str = self.config.get('start_date', default_date)
         try:
-            response = endpoint.get()
-            for chunk in response.iter_decompress():
-                lines = chunk.decode('utf-8').splitlines()
-                for line in lines:
-                    if line.strip():
-                        record = self.parse_report_line(line.strip())
-                        if record:
-                            yield record
-        except Exception as e:
-            logger.error(f"Failed to fetch reports: {str(e)}")
+            return datetime.strptime(start_date_str, date_format)
+        except ValueError as e:
+            logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
+            return None
 
-    def parse_report_line(self, line: str):
-        """To be implemented by subclasses: Parses a single line of raw report data."""
-        raise NotImplementedError("Subclasses must implement this method.")
+    def setup_endpoint(self, start_date):
+        """Set up the endpoint for the API call. Override in subclass as needed."""
+        # Default to a generic endpoint configuration; specific streams will override this
+        return None
+
+    def parse_report_line(self, start_date):
+        """Parse a line returned by get_records"""
+        # Default to a generic configuration; specific streams will override this
+        return None
+
+    def increment_date(self, date):
+        """Increment date by one day. Override in subclass if different increment is needed."""
+        return date + timedelta(days=1)
+
+    def update_stream_state(self, date):
+        """Update the stream state with the new date."""
+        self.stream_state['begin_date'] = date.strftime('%Y-%m-%d')
+        self.logger.info(f"Updating state, new start date is {self.stream_state['begin_date']}")
+
+    def get_records(self, context: dict = None):
+        start_date = self.get_start_date(default_date='2024-01-01')
+        if not start_date:
+            logger.error("Start date could not be determined.")
+            return
+
+        start_date = start_date.replace(tzinfo=None)
+        date_limit = datetime.now().replace(tzinfo=None) - timedelta(days=2)
+
+        while start_date <= date_limit:
+            endpoint = self.setup_endpoint(start_date)
+            if not endpoint:
+                logger.error("Endpoint configuration is missing.")
+                break
+
+            try:
+                response = endpoint.get()
+                for chunk in response.iter_decompress():  # Handling compressed data
+                    lines = chunk.decode('utf-8').splitlines()
+                    for line in lines:
+                        if line.strip():
+                            record = self.parse_report_line(line.strip())
+                            if record:
+                                yield record
+
+                start_date = self.increment_date(start_date)
+                self.update_stream_state(start_date)
+
+
+            except Exception as e:
+                logger.error(f"Failed to fetch reports: {str(e)}")
+                raise e
+
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):

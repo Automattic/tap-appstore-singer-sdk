@@ -54,34 +54,14 @@ class SalesReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_records(self, context: dict = None):
-        # Initialize the start_date from the stream's state or configuration
-        start_date = self.get_starting_timestamp(context)
-        if not start_date:
-            start_date = datetime.strptime(self.config.get('start_date', '2024-04-01'), '%Y-%m-%d')
-
-        # Ensure start_date is naive
-        start_date = start_date.replace(tzinfo=None)
-
-        # Define 'yesterday' as the upper limit for fetching data
-        yesterday = datetime.now().replace(tzinfo=None) - timedelta(days=1)
-
-        while start_date <= yesterday:
-            endpoint = self.connection.sales_reports().filter(
-                frequency=SalesReportsEndpoint.Frequency.DAILY,
-                report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-                report_type=SalesReportsEndpoint.ReportType.SALES,
-                report_date=start_date.strftime('%Y-%m-%d'),
-                vendor_number=self.config['vendor_number'],
-            )
-
-            for record in super().get_records(endpoint):
-                yield record
-
-            start_date += timedelta(days=1)
-            self.stream_state['begin_date'] = start_date.strftime('%Y-%m-%d')
-            self.logger.info(f"Updating state, new start_date is {self.stream_state['begin_date']}")
-
+    def setup_endpoint(self, start_date):
+        return self.connection.sales_reports().filter(
+            frequency=SalesReportsEndpoint.Frequency.DAILY,
+            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
+            report_type=SalesReportsEndpoint.ReportType.SALES,
+            report_date=start_date.strftime('%Y-%m-%d'),
+            vendor_number=self.config['vendor_number'],
+        )
 
     def parse_report_line(self, line):
         """Parses a single line of raw sales report data, handling optional fields."""
@@ -130,6 +110,7 @@ class SalesReportStream(client.AppStoreStream):
 
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
+    replication_key = "event_date"  # Use event_date as the replication key for incremental loading
     #primary_keys = ["_line_id"]
     schema = th.PropertiesList(
         th.Property("event_date", th.DateTimeType),
@@ -163,24 +144,21 @@ class SubscriberReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_records(self, *args, **kwargs):
-        """Overrides the generic get_records to specify the endpoint for subscriber reports."""
-
-        endpoint = self.connection.sales_reports().filter(
+    def setup_endpoint(self, start_date):
+        """Specify the API endpoint for subscriber reports."""
+        return self.connection.sales_reports().filter(
             frequency=SalesReportsEndpoint.Frequency.DAILY,
             report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
             report_type=SalesReportsEndpoint.ReportType.SUBSCRIBER,
-            report_date=self.config.get('start_date', '2024-02-01'),
+            report_date=start_date.strftime('%Y-%m-%d'),
             vendor_number=self.config['vendor_number'],
-            version="1_3",
+            version="1_3"
         )
-        # Now call the generic get_records from the parent class
-        return super().get_records(endpoint)
 
     def parse_report_line(self, line):
         """Parses a single line of raw subscriber report data, handling optional fields."""
         fields = line.split('\t')
-        if fields[0] == 'Event Date' or len(fields) < 15:
+        if fields[0] == 'Event Date' or len(fields) < 25:
             logger.warning(f"Skipping incomplete record: {line}")
             return None
 
