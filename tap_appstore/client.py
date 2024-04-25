@@ -16,7 +16,8 @@ from singer_sdk.pagination import BaseAPIPaginator  # noqa: TCH002
 from singer_sdk.streams import RESTStream
 import csv
 from io import StringIO
-
+from appstoreconnect import Api
+from appstoreconnect.api import APIError
 
 if sys.version_info >= (3, 9):
     import importlib.resources as importlib_resources
@@ -54,7 +55,7 @@ class AppStoreStream(RESTStream):
             logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
             return None
 
-    def setup_endpoint(self, start_date):
+    def get_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         # Default to a generic endpoint configuration; specific streams will override this
         return None
@@ -82,49 +83,43 @@ class AppStoreStream(RESTStream):
         start_date = start_date.replace(tzinfo=None)
         date_limit = datetime.now().replace(tzinfo=None) - timedelta(days=2)
 
-        all_data = []
-        is_first_chunk = True
-
         while start_date <= date_limit:
-            endpoint = self.setup_endpoint(start_date)
-            if not endpoint:
-                logger.error("Endpoint configuration is missing.")
-                break
 
             try:
-                response = endpoint.get()
+                logger.info(f"start_date_date_only: {start_date.strftime('%Y-%m-%d')}")
 
-                # Stream full TSV file as Gzip stream and load into memory
-                for chunk in response.iter_decompress():
-                    chunk_data = chunk.decode('utf-8')
-                    if not is_first_chunk:
-                        chunk_data = "\n".join(chunk_data.splitlines()[1:])
-                    all_data.append(chunk_data)
+                api = Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'])
+                all_data = self.get_data(start_date, api)
 
-                start_date = self.increment_date(start_date)
-                self.update_stream_state(start_date)
-            except Exception as e:
-                logger.error(f"Failed to process data: {str(e)}")
-                break
+                data_io = StringIO(all_data)
 
-        data_io = StringIO("\n".join(all_data))
+                # Rename column names from 'App Name' -> 'app_name'
+                first_line = data_io.readline().strip()
+                fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
 
-        # Rename column names from 'App Name' -> 'app_name'
-        first_line = data_io.readline().strip()
-        fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
+                # Load TSV from memory
+                reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
-        # Load TSV from memory
-        reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
+                # TODO: move date formatting for sales_reports to SalesReportStream chile class
+                for record in reader:
+                    if record.get('begin_date'):
+                        record['begin_date'] = self.convert_date(record['begin_date'], '%m/%d/%Y')
+                    if record.get('end_date'):
+                        record['end_date'] = self.convert_date(record['end_date'], '%m/%d/%Y')
+                    if record.get('start_date'):
+                        record['start_date'] = self.convert_date(record['start_date'], '%m/%d/%Y')
 
-        # TODO: move date formatting for sales_reports to SalesReportStream chile class
-        for record in reader:
-            if record.get('begin_date'):
-                record['begin_date'] = self.convert_date(record['begin_date'], '%m/%d/%Y')
-            if record.get('end_date'):
-                record['end_date'] = self.convert_date(record['end_date'], '%m/%d/%Y')
+                    logger.info(f'row: {record}')
+                    yield record
 
-            #logger.info(f'row: {record}')
-            yield record
+            except APIError as e:
+                logger.error(f'Error during download report {self.name}.\n{e}')
+
+            start_date = self.increment_date(start_date)
+            self.update_stream_state(start_date)
+
+
+
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):

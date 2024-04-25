@@ -55,14 +55,17 @@ class SalesReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def setup_endpoint(self, start_date):
-        return self.connection.sales_reports().filter(
-            frequency=SalesReportsEndpoint.Frequency.DAILY,
-            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-            report_type=SalesReportsEndpoint.ReportType.SALES,
-            report_date=start_date.strftime('%Y-%m-%d'),
-            vendor_number=self.config['vendor_number'],
-        )
+    def get_data(self, start_date, api):
+        filters = {'vendorNumber': self.config['vendor_number'],
+                'frequency': 'DAILY',
+                'reportType': 'SALES',
+                'reportSubType': 'SUMMARY',
+                'reportDate': start_date.strftime('%Y-%m-%d'),
+                'version': '1_0'
+                }
+
+        return api.download_sales_and_trends_reports(
+                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
 
 
 class SubscriberReportStream(client.AppStoreStream):
@@ -100,16 +103,18 @@ class SubscriberReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def setup_endpoint(self, start_date):
-        """Specify the API endpoint for subscriber reports."""
-        return self.connection.sales_reports().filter(
-            frequency=SalesReportsEndpoint.Frequency.DAILY,
-            report_sub_type=SalesReportsEndpoint.ReportSubType.DETAILED,
-            report_type=SalesReportsEndpoint.ReportType.SUBSCRIBER,
-            report_date=start_date.strftime('%Y-%m-%d'),
-            vendor_number=self.config['vendor_number'],
-            version="1_3"
-        )
+    def get_data(self, start_date, api):
+        filters = {'vendorNumber': self.config['vendor_number'],
+                'frequency': 'DAILY',
+                'reportType': 'SUBSCRIBER',
+                'reportSubType': 'DETAILED',
+                'reportDate': start_date.strftime('%Y-%m-%d'),
+                'version': '1_3'
+                }
+
+        return api.download_sales_and_trends_reports(
+                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
+
 
 
 class SubscriptionReportStream(client.AppStoreStream):
@@ -143,15 +148,17 @@ class SubscriptionReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def setup_endpoint(self, start_date):
-        return self.connection.sales_reports().filter(
-            frequency=SalesReportsEndpoint.Frequency.DAILY,
-            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-            report_type=SalesReportsEndpoint.ReportType.SUBSCRIPTION,
-            report_date=self.config.get('start_date', '2024-04-01'),
-            vendor_number=self.config['vendor_number'],
-            version="1_3",
-        )
+    def get_data(self, start_date, api):
+        filters = {'vendorNumber': self.config['vendor_number'],
+                'frequency': 'DAILY',
+                'reportType': 'SUBSCRIPTION',
+                'reportSubType': 'SUMMARY',
+                'reportDate': start_date.strftime('%Y-%m-%d'),
+                'version': '1_3'
+                }
+
+        return api.download_sales_and_trends_reports(
+                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
 
 
 
@@ -192,15 +199,17 @@ class SubscriptionEventReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def setup_endpoint(self, start_date):
-        return self.connection.sales_reports().filter(
-            frequency=SalesReportsEndpoint.Frequency.DAILY,
-            report_sub_type=SalesReportsEndpoint.ReportSubType.SUMMARY,
-            report_type=SalesReportsEndpoint.ReportType.SUBSCRIPTION_EVENT,
-            report_date=self.config.get('start_date', '2024-04-01'),
-            vendor_number=self.config['vendor_number'],
-            version="1_3",
-        )
+    def get_data(self, start_date, api):
+        filters = {'vendorNumber': self.config['vendor_number'],
+                'frequency': 'DAILY',
+                'reportType': 'SUBSCRIPTION',
+                'reportSubType': 'SUMMARY',
+                'reportDate': start_date.strftime('%Y-%m-%d'),
+                'version': '1_3'
+                }
+
+        return api.download_sales_and_trends_reports(
+                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
 
 
 class FinancialReportStream(client.AppStoreStream):
@@ -227,14 +236,17 @@ class FinancialReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def setup_endpoint(self, start_date):
-        month_str = start_date.strftime('%Y-%m')
-        return self.connection.finance_reports().filter(
-            region_code=self.config.get('region_code', 'US'),
-            report_date=month_str,
-            report_type=FinanceReportsEndpoint.ReportType.FINANCIAL,
-            vendor_number=self.config['vendor_number']
-        )
+    def get_data(self, start_date, api):
+        filters = {'vendorNumber': self.config['vendor_number'],
+                'regionCode': 'US',
+                'reportType': 'FINANCIAL',
+                'reportDate': start_date.strftime('%Y-%m'),
+                }
+        logging.info(filters)
+
+        return api.download_finance_reports(
+                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
+
 
     def increment_date(self, date):
         """Increment date by one month."""
