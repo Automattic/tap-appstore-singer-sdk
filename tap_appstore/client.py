@@ -14,6 +14,9 @@ from singer_sdk.authenticators import APIKeyAuthenticator
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.pagination import BaseAPIPaginator  # noqa: TCH002
 from singer_sdk.streams import RESTStream
+import csv
+from io import StringIO
+
 
 if sys.version_info >= (3, 9):
     import importlib.resources as importlib_resources
@@ -79,6 +82,9 @@ class AppStoreStream(RESTStream):
         start_date = start_date.replace(tzinfo=None)
         date_limit = datetime.now().replace(tzinfo=None) - timedelta(days=2)
 
+        all_data = []
+        is_first_chunk = True
+
         while start_date <= date_limit:
             endpoint = self.setup_endpoint(start_date)
             if not endpoint:
@@ -87,28 +93,49 @@ class AppStoreStream(RESTStream):
 
             try:
                 response = endpoint.get()
-                for chunk in response.iter_decompress():  # Handling compressed data
-                    lines = chunk.decode('utf-8').splitlines()
-                    for line in lines:
-                        if line.strip():
-                            record = self.parse_report_line(line.strip())
-                            if record:
-                                yield record
+
+                # Stream full TSV file as Gzip stream and load into memory
+                for chunk in response.iter_decompress():
+                    chunk_data = chunk.decode('utf-8')
+                    if not is_first_chunk:
+                        chunk_data = "\n".join(chunk_data.splitlines()[1:])
+                    all_data.append(chunk_data)
 
                 start_date = self.increment_date(start_date)
                 self.update_stream_state(start_date)
-
-
             except Exception as e:
-                logger.error(f"Failed to fetch reports: {str(e)}")
-                raise e
+                logger.error(f"Failed to process data: {str(e)}")
+                break
 
+        data_io = StringIO("\n".join(all_data))
+
+        # Rename column names from 'App Name' -> 'app_name'
+        first_line = data_io.readline().strip()
+        fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
+
+        # Load TSV from memory
+        reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
+
+        # TODO: move date formatting for sales_reports to SalesReportStream chile class
+        for record in reader:
+            if record.get('begin_date'):
+                record['begin_date'] = self.convert_date(record['begin_date'], '%m/%d/%Y')
+            if record.get('end_date'):
+                record['end_date'] = self.convert_date(record['end_date'], '%m/%d/%Y')
+
+            #logger.info(f'row: {record}')
+            yield record
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):
         """Converts date string to ISO format based on the given date format, defaulting to '%Y-%m-%d'.
            Returns None if the date string is invalid or empty.
         """
+
+        if not date_str:
+            logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
+            return None
+
         date_str = date_str.strip()
         if not date_str:
             logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
