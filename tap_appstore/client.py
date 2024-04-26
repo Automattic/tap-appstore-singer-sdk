@@ -48,6 +48,10 @@ class AppStoreStream(RESTStream):
             logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
             return None
 
+    def get_report_date(self, date):
+        """Return the report date formatted according to the specific needs of the stream."""
+        return date.strftime('%Y-%m-%d')
+
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         # Default to a generic endpoint configuration; specific streams will override this
@@ -87,6 +91,7 @@ class AppStoreStream(RESTStream):
 
         start_date = start_date.replace(tzinfo=None)
         date_limit = datetime.now().replace(tzinfo=None) - timedelta(days=2)
+        line_id = 0
 
         while start_date <= date_limit:
 
@@ -104,6 +109,11 @@ class AppStoreStream(RESTStream):
                 reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
                 for record in reader:
+                    line_id += 1
+                    record['_line_id'] = line_id
+                    record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+                    record['_api_report_date'] = self.get_report_date(start_date)
+
                     processed_record = self.process_record(record)
                     if processed_record is not None:
                         yield processed_record

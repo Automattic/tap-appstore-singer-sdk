@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
     schema = th.PropertiesList(
-        th.Property("report_date", th.StringType),
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.StringType),
         th.Property("provider", th.StringType),
         th.Property("provider_country", th.StringType),
         th.Property("sku", th.StringType),
@@ -62,7 +64,7 @@ class SalesReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SALES',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'reportDate': self.get_report_date(start_date),
             'version': '1_0',
             'vendorNumber': self.config['vendor_number']
         }
@@ -72,6 +74,9 @@ class SalesReportStream(client.AppStoreStream):
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
     schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.StringType),
         th.Property("event_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
@@ -110,7 +115,7 @@ class SubscriberReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIBER',
             'reportSubType': 'DETAILED',
-            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'reportDate': self.get_report_date(start_date),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -120,6 +125,9 @@ class SubscriberReportStream(client.AppStoreStream):
 class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_reports"
     schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.StringType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
@@ -177,7 +185,7 @@ class SubscriptionReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'reportDate': self.get_report_date(start_date),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -187,6 +195,9 @@ class SubscriptionReportStream(client.AppStoreStream):
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_reports"
     schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.StringType),
         th.Property("event_date", th.DateTimeType),
         th.Property("event", th.StringType),
         th.Property("app_name", th.StringType),
@@ -228,7 +239,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'reportDate': self.get_report_date(start_date),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -238,6 +249,9 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 class FinancialReportStream(client.AppStoreStream):
     name = "financial_reports"
     schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.StringType),
         th.Property("start_date", th.DateTimeType),
         th.Property("end_date", th.DateTimeType),
         th.Property("vendor_identifier", th.StringType),
@@ -272,10 +286,14 @@ class FinancialReportStream(client.AppStoreStream):
         filters = {'vendorNumber': self.config['vendor_number'],
                    'regionCode': 'US',
                    'reportType': 'FINANCIAL',
-                   'reportDate': start_date.strftime('%Y-%m'),
+                   'reportDate': self.get_report_date(start_date),
                    }
         return api.download_finance_reports(filters=filters)
 
     def increment_date(self, date):
         """Increment date by one month."""
         return date + relativedelta(months=1)
+
+    def get_report_date(self, date):
+        """Return the report date formatted as year-month for financial reports."""
+        return date.strftime('%Y-%m')  # Specific format for financial reports
