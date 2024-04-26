@@ -96,7 +96,7 @@ class AppStoreStream(RESTStream):
         while start_date <= date_limit:
 
             try:
-                logger.info(f"start_date_date_only: {start_date.strftime('%Y-%m-%d')}")
+                logger.info(f"report_date: {self.get_report_date(start_date)}")
                 all_data = self.download_data(start_date, self.api)
 
                 data_io = StringIO(all_data)
