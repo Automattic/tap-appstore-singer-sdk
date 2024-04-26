@@ -123,12 +123,12 @@ class SubscriptionReportStream(client.AppStoreStream):
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
-        th.Property("subscription_apple_id", th.IntegerType),
-        th.Property("subscription_group_id", th.IntegerType),
-        th.Property("subscription_group_name", th.StringType),
-        th.Property("subscription_duration", th.StringType),
-        th.Property("subscription_offer_type", th.StringType),
-        th.Property("marketing_opt_in_duration", th.StringType),
+        th.Property("subscription_offer_name", th.StringType),
+        th.Property("subscription_apple_id", th.StringType),
+        th.Property("subscription_group_id", th.StringType),
+        th.Property("standard_subscription_duration", th.StringType),
+        th.Property("promotional_offer_name", th.StringType),
+        th.Property("promotional_offer_id", th.StringType),
         th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType),
         th.Property("developer_proceeds", th.NumberType),
@@ -137,18 +137,40 @@ class SubscriptionReportStream(client.AppStoreStream):
         th.Property("proceeds_reason", th.StringType),
         th.Property("client", th.StringType),
         th.Property("device", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("subscribers", th.StringType),
         th.Property("country", th.StringType),
-        th.Property("subscriber_id", th.IntegerType),
-        th.Property("subscriber_id_reset", th.StringType),
-        th.Property("refund", th.StringType),
-        th.Property("purchase_date", th.StringType),
-        th.Property("units", th.IntegerType)  # Assuming you want this as string too
+        th.Property("active_standard_price_subscriptions", th.IntegerType),
+        th.Property("active_free_trial_introductory_offer_subscriptions", th.IntegerType),
+        th.Property("active_pay_up_front_introductory_offer_subscriptions", th.IntegerType),
+        th.Property("active_pay_as_you_go_introductory_offer_subscriptions", th.IntegerType),
+        th.Property("free_trial_offer_code_subscriptions", th.IntegerType),
+        th.Property("free_trial_promotional_offer_subscriptions", th.IntegerType),
+        th.Property("pay_as_you_go_offer_code_subscriptions", th.IntegerType),
+        th.Property("pay_up_front_promotional_offer_subscriptions", th.IntegerType),
+        th.Property("pay_up_front_offer_code_subscriptions", th.IntegerType),
+        th.Property("pay_as_you_go_promotional_offer_subscriptions", th.IntegerType),
+        th.Property("marketing_opt_ins", th.IntegerType),
+        th.Property("billing_retry", th.IntegerType),
+        th.Property("grace_period", th.IntegerType)
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.float_fields = ['developer_proceeds', 'customer_price']
-        self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
+        self.int_fields = ['app_apple_id', 'active_standard_price_subscriptions',
+                           'active_free_trial_introductory_offer_subscriptions',
+                           'active_pay_up_front_introductory_offer_subscriptions',
+                           'active_pay_as_you_go_introductory_offer_subscriptions',
+                           'free_trial_offer_code_subscriptions',
+                           'free_trial_promotional_offer_subscriptions',
+                           'pay_as_you_go_offer_code_subscriptions',
+                           'pay_up_front_promotional_offer_subscriptions',
+                           'pay_up_front_offer_code_subscriptions',
+                           'pay_as_you_go_promotional_offer_subscriptions',
+                           'marketing_opt_ins',
+                           'billing_retry',
+                           'grace_period']
 
     def download_data(self, start_date, api):
         filters = {
@@ -198,7 +220,8 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.int_fields = ['consecutive_paid_periods', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id', 'days_canceled', 'quantity']
+        self.int_fields = ['consecutive_paid_periods', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id',
+                           'days_canceled', 'quantity']
 
     def download_data(self, start_date, api):
         filters = {
