@@ -33,22 +33,14 @@ class AppStoreStream(RESTStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.connection = self.setup_connection()
-
+        self.api = self.setup_api_connection()
         self.float_fields = None
         self.int_fields = None
         self.date_fields = None
 
-    def setup_connection(self):
+    def setup_api_connection(self):
         """Set up the API connection using provided configuration."""
-        KEY_ID = self.config['key_id']
-        ISSUER_ID = self.config['issuer_id']
-        PATH_TO_KEY = os.path.expanduser(self.config['key_file'])
-
-        with open(PATH_TO_KEY, 'r') as f:
-            PRIVATE_KEY = f.read()
-
-        return Connection(ISSUER_ID, KEY_ID, PRIVATE_KEY)
+        return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'])
 
     def get_start_date(self, date_format='%Y-%m-%d', default_date='2024-01-01'):
         """Retrieve the configured start date, formatted as specified."""
@@ -59,7 +51,7 @@ class AppStoreStream(RESTStream):
             logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
             return None
 
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         # Default to a generic endpoint configuration; specific streams will override this
         return None
@@ -103,9 +95,7 @@ class AppStoreStream(RESTStream):
 
             try:
                 logger.info(f"start_date_date_only: {start_date.strftime('%Y-%m-%d')}")
-
-                api = Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'])
-                all_data = self.get_data(start_date, api)
+                all_data = self.download_data(start_date, self.api)
 
                 data_io = StringIO(all_data)
 

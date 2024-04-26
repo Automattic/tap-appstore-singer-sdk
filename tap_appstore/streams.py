@@ -63,8 +63,7 @@ class SalesReportStream(client.AppStoreStream):
             'end_date': '%m/%d/%Y',
         }
 
-
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
             'reportType': 'SALES',
@@ -112,7 +111,7 @@ class SubscriberReportStream(client.AppStoreStream):
         self.float_fields = ['developer_proceeds', 'customer_price']
         self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
 
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIBER',
@@ -157,7 +156,7 @@ class SubscriptionReportStream(client.AppStoreStream):
         self.float_fields = ['developer_proceeds', 'customer_price']
         self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
 
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
@@ -207,7 +206,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         super().__init__(*args, **kwargs)
         self.int_fields = ['consecutive_paid_periods', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id', 'days_canceled', 'quantity']
 
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
@@ -252,7 +251,7 @@ class FinancialReportStream(client.AppStoreStream):
             'end_date': '%m/%d/%Y',
         }
 
-    def get_data(self, start_date, api):
+    def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],
                    'regionCode': 'US',
                    'reportType': 'FINANCIAL',
