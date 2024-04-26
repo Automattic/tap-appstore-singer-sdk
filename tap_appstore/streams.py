@@ -48,12 +48,8 @@ class SalesReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.float_fields = ['developer_proceeds', 'customer_price']
         self.int_fields = ['units', 'apple_identifier']
-
-        # These date fields are Month/Date/Year
-        # so we have to convert them
         self.date_fields = {
             'begin_date': '%m/%d/%Y',
             'end_date': '%m/%d/%Y',
@@ -274,9 +270,6 @@ class FinancialReportStream(client.AppStoreStream):
         super().__init__(*args, **kwargs)
         self.float_fields = ['customer_price', 'partner_share', 'extended_partner_share']
         self.int_fields = ['quantity']
-
-        # These date fields are Month/Date/Year
-        # so we have to convert them
         self.date_fields = {
             'start_date': '%m/%d/%Y',
             'end_date': '%m/%d/%Y',
@@ -296,4 +289,4 @@ class FinancialReportStream(client.AppStoreStream):
 
     def get_report_date(self, date):
         """Return the report date formatted as year-month for financial reports."""
-        return date.strftime('%Y-%m')  # Specific format for financial reports
+        return date.strftime('%Y-%m')

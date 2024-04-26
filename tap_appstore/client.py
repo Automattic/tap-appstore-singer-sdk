@@ -54,19 +54,16 @@ class AppStoreStream(RESTStream):
 
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
-        # Default to a generic endpoint configuration; specific streams will override this
         return None
 
     def process_record(self, record):
-        # Process float fields
+        """Convert ints, floats, and date fields"""
         if self.float_fields:
             self.convert_fields(record, self.float_fields, float)
 
-        # Process int fields
         if self.int_fields:
             self.convert_fields(record, self.int_fields, int)
 
-        # Process date fields
         if self.date_fields:
             for field, format in self.date_fields.items():
                 if field in record and record[field]:
@@ -84,6 +81,7 @@ class AppStoreStream(RESTStream):
         self.logger.info(f"Updating state, new start date is {self.stream_state['start_date']}")
 
     def get_records(self, context: dict = None):
+        """Return a generator of record-type dictionary objects."""
         start_date = self.get_start_date(default_date='2024-01-01')
         if not start_date:
             logger.error("Start date could not be determined.")
@@ -105,7 +103,6 @@ class AppStoreStream(RESTStream):
                 first_line = data_io.readline().strip()
                 fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
 
-                # Load TSV from memory
                 reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
                 for record in reader:
