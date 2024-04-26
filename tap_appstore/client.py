@@ -35,6 +35,10 @@ class AppStoreStream(RESTStream):
         super().__init__(*args, **kwargs)
         self.connection = self.setup_connection()
 
+        self.float_fields = None
+        self.int_fields = None
+        self.date_fields = None
+
     def setup_connection(self):
         """Set up the API connection using provided configuration."""
         KEY_ID = self.config['key_id']
@@ -60,10 +64,22 @@ class AppStoreStream(RESTStream):
         # Default to a generic endpoint configuration; specific streams will override this
         return None
 
-    def parse_report_line(self, start_date):
-        """Parse a line returned by get_records"""
-        # Default to a generic configuration; specific streams will override this
-        return None
+    def process_record(self, record):
+        # Process float fields
+        if self.float_fields:
+            self.convert_fields(record, self.float_fields, float)
+
+        # Process int fields
+        if self.int_fields:
+            self.convert_fields(record, self.int_fields, int)
+
+        # Process date fields
+        if self.date_fields:
+            for field, format in self.date_fields.items():
+                if field in record and record[field]:
+                    record[field] = self.convert_date(record[field], format)
+
+        return record
 
     def increment_date(self, date):
         """Increment date by one day. Override in subclass if different increment is needed."""
@@ -100,16 +116,11 @@ class AppStoreStream(RESTStream):
                 # Load TSV from memory
                 reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
-                # TODO: move date formatting for sales_reports to SalesReportStream chile class
                 for record in reader:
-                    if record.get('begin_date'):
-                        record['begin_date'] = self.convert_date(record['begin_date'], '%m/%d/%Y')
-                    if record.get('end_date'):
-                        record['end_date'] = self.convert_date(record['end_date'], '%m/%d/%Y')
-                    if record.get('start_date'):
-                        record['start_date'] = self.convert_date(record['start_date'], '%m/%d/%Y')
+                    processed_record = self.process_record(record)
+                    if processed_record is not None:
+                        yield processed_record
 
-                    logger.info(f'row: {record}')
                     yield record
 
             except APIError as e:
@@ -117,8 +128,6 @@ class AppStoreStream(RESTStream):
 
             start_date = self.increment_date(start_date)
             self.update_stream_state(start_date)
-
-
 
 
     @staticmethod
@@ -141,6 +150,15 @@ class AppStoreStream(RESTStream):
         except ValueError as e:
             logger.error(f"Date conversion error for date: '{date_str}' with format '{date_format}' | Error: {str(e)}")
             return None
+
+    def convert_fields(self, record, fields, target_type):
+        for field in fields:
+            if field in record and record[field] is not None:
+                try:
+                    record[field] = target_type(record[field])
+                except ValueError:
+                    logger.warning(f"Invalid format for {field}: {record[field]}")
+                    record[field] = None  # Decide on fallback behavior here
 
     @property
     def url_base(self) -> str:

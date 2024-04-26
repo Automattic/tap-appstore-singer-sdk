@@ -8,8 +8,7 @@ from applaud.connection import Connection
 from applaud.endpoints.sales_reports import SalesReportsEndpoint
 from applaud.endpoints.finance_reports import FinanceReportsEndpoint
 from singer_sdk import Stream, typing as th
-import datetime
-from datetime import datetime, timedelta
+
 from dateutil.relativedelta import relativedelta
 import logging
 from tap_appstore import client
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
-    #primary_keys = ["id"]
     schema = th.PropertiesList(
         th.Property("report_date", th.StringType),
         th.Property("provider", th.StringType),
@@ -29,15 +27,15 @@ class SalesReportStream(client.AppStoreStream):
         th.Property("title", th.StringType),
         th.Property("version", th.StringType),
         th.Property("product_type_identifier", th.StringType),
-        th.Property("units", th.StringType),
-        th.Property("developer_proceeds", th.StringType),
+        th.Property("units", th.IntegerType),
+        th.Property("developer_proceeds", th.NumberType),
         th.Property("begin_date", th.DateTimeType),
         th.Property("end_date", th.DateTimeType),
         th.Property("customer_currency", th.StringType),
         th.Property("country_code", th.StringType),
         th.Property("currency_of_proceeds", th.StringType),
-        th.Property("apple_identifier", th.StringType),
-        th.Property("customer_price", th.StringType),
+        th.Property("apple_identifier", th.IntegerType),
+        th.Property("customer_price", th.NumberType),
         th.Property("promo_code", th.StringType),
         th.Property("parent_identifier", th.StringType),
         th.Property("subscription", th.StringType),
@@ -55,38 +53,47 @@ class SalesReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor_number'],
-                'frequency': 'DAILY',
-                'reportType': 'SALES',
-                'reportSubType': 'SUMMARY',
-                'reportDate': start_date.strftime('%Y-%m-%d'),
-                'version': '1_0'
-                }
+        self.float_fields = ['developer_proceeds', 'customer_price']
+        self.int_fields = ['units', 'apple_identifier']
 
-        return api.download_sales_and_trends_reports(
-                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
+        # These date fields ae Month/Date/Year
+        # so we have to convert them
+        self.date_fields = {
+            'begin_date': '%m/%d/%Y',
+            'end_date': '%m/%d/%Y',
+        }
+
+
+    def get_data(self, start_date, api):
+        filters = {
+            'frequency': 'DAILY',
+            'reportType': 'SALES',
+            'reportSubType': 'SUMMARY',
+            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'version': '1_0',
+            'vendorNumber': self.config['vendor_number']
+        }
+        return api.download_sales_and_trends_reports(filters=filters)
 
 
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
-    #primary_keys = ["_line_id"]
     schema = th.PropertiesList(
         th.Property("event_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
-        th.Property("app_apple_id", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
-        th.Property("subscription_apple_id", th.StringType),
-        th.Property("subscription_group_id", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
         th.Property("standard_subscription_duration", th.StringType),
         th.Property("promotional_offer_name", th.StringType),
         th.Property("promotional_offer_id", th.StringType),
         th.Property("subscription_offer_type", th.StringType),
         th.Property("subscription_offer_duration", th.StringType),
         th.Property("marketing_opt_in_duration", th.StringType),
-        th.Property("customer_price", th.StringType),
+        th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType),
-        th.Property("developer_proceeds", th.StringType),
+        th.Property("developer_proceeds", th.NumberType),
         th.Property("proceeds_currency", th.StringType),
         th.Property("preserved_pricing", th.StringType),
         th.Property("proceeds_reason", th.StringType),
@@ -97,24 +104,24 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("subscriber_id_reset", th.StringType),
         th.Property("refund", th.StringType),
         th.Property("purchase_date", th.StringType),
-        th.Property("units", th.StringType)
+        th.Property("units", th.IntegerType)
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.float_fields = ['developer_proceeds', 'customer_price']
+        self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
 
     def get_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor_number'],
-                'frequency': 'DAILY',
-                'reportType': 'SUBSCRIBER',
-                'reportSubType': 'DETAILED',
-                'reportDate': start_date.strftime('%Y-%m-%d'),
-                'version': '1_3'
-                }
-
-        return api.download_sales_and_trends_reports(
-                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
-
+        filters = {
+            'frequency': 'DAILY',
+            'reportType': 'SUBSCRIBER',
+            'reportSubType': 'DETAILED',
+            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'version': '1_3',
+            'vendorNumber': self.config['vendor_number']
+        }
+        return api.download_sales_and_trends_reports(filters=filters)
 
 
 class SubscriptionReportStream(client.AppStoreStream):
@@ -149,17 +156,15 @@ class SubscriptionReportStream(client.AppStoreStream):
         super().__init__(*args, **kwargs)
 
     def get_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor_number'],
-                'frequency': 'DAILY',
-                'reportType': 'SUBSCRIPTION',
-                'reportSubType': 'SUMMARY',
-                'reportDate': start_date.strftime('%Y-%m-%d'),
-                'version': '1_3'
-                }
-
-        return api.download_sales_and_trends_reports(
-                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
-
+        filters = {
+            'frequency': 'DAILY',
+            'reportType': 'SUBSCRIPTION',
+            'reportSubType': 'SUMMARY',
+            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'version': '1_3',
+            'vendorNumber': self.config['vendor_number']
+        }
+        return api.download_sales_and_trends_reports(filters=filters)
 
 
 class SubscriptionEventReportStream(client.AppStoreStream):
@@ -200,16 +205,15 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         super().__init__(*args, **kwargs)
 
     def get_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor_number'],
-                'frequency': 'DAILY',
-                'reportType': 'SUBSCRIPTION',
-                'reportSubType': 'SUMMARY',
-                'reportDate': start_date.strftime('%Y-%m-%d'),
-                'version': '1_3'
-                }
-
-        return api.download_sales_and_trends_reports(
-                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
+        filters = {
+            'frequency': 'DAILY',
+            'reportType': 'SUBSCRIPTION',
+            'reportSubType': 'SUMMARY',
+            'reportDate': start_date.strftime('%Y-%m-%d'),
+            'version': '1_3',
+            'vendorNumber': self.config['vendor_number']
+        }
+        return api.download_sales_and_trends_reports(filters=filters)
 
 
 class FinancialReportStream(client.AppStoreStream):
@@ -238,15 +242,11 @@ class FinancialReportStream(client.AppStoreStream):
 
     def get_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],
-                'regionCode': 'US',
-                'reportType': 'FINANCIAL',
-                'reportDate': start_date.strftime('%Y-%m'),
-                }
-        logging.info(filters)
-
-        return api.download_finance_reports(
-                    filters=filters, save_to=f"report_new_{start_date.strftime('%Y-%m-%d')}.csv")
-
+                   'regionCode': 'US',
+                   'reportType': 'FINANCIAL',
+                   'reportDate': start_date.strftime('%Y-%m'),
+                   }
+        return api.download_finance_reports(filters=filters)
 
     def increment_date(self, date):
         """Increment date by one month."""
