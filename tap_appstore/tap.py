@@ -48,7 +48,6 @@ class TapAppStore(Tap):
         ),
     ).to_dict()
 
-
     def discover_streams(self) -> list[streams.AppStoreStream]:
         """Return a list of discovered streams.
 
