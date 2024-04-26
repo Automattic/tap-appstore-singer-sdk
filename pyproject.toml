@@ -24,7 +24,6 @@ python = ">=3.8"
 appstoreconnect = { git = "https://github.com/mahangu/appstoreconnectapi.git", branch = "fix-dependencies" }
 importlib-resources = { version = "==6.1.*", python = "<3.9" }
 singer-sdk = { version="~=0.36.1", extras = [] }
-applaud = { version="~=0.9.4", python = ">=3.9,<4.0"  }
 fs-s3fs = { version = "~=1.1.1", optional = true }
 requests = "~=2.31.0"
 
