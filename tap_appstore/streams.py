@@ -1,12 +1,6 @@
 """Stream type classes for tap-appstore."""
 
 from __future__ import annotations
-import tempfile
-
-import os
-from applaud.connection import Connection
-from applaud.endpoints.sales_reports import SalesReportsEndpoint
-from applaud.endpoints.finance_reports import FinanceReportsEndpoint
 from singer_sdk import Stream, typing as th
 
 from dateutil.relativedelta import relativedelta
