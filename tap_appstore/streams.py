@@ -56,7 +56,7 @@ class SalesReportStream(client.AppStoreStream):
         self.float_fields = ['developer_proceeds', 'customer_price']
         self.int_fields = ['units', 'apple_identifier']
 
-        # These date fields ae Month/Date/Year
+        # These date fields are Month/Date/Year
         # so we have to convert them
         self.date_fields = {
             'begin_date': '%m/%d/%Y',
@@ -128,32 +128,34 @@ class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_reports"
     schema = th.PropertiesList(
         th.Property("app_name", th.StringType),
-        th.Property("app_apple_id", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
-        th.Property("subscription_apple_id", th.StringType),
-        th.Property("subscription_group_id", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
         th.Property("subscription_group_name", th.StringType),
         th.Property("subscription_duration", th.StringType),
         th.Property("subscription_offer_type", th.StringType),
         th.Property("marketing_opt_in_duration", th.StringType),
-        th.Property("customer_price", th.StringType),
+        th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType),
-        th.Property("developer_proceeds", th.StringType),
+        th.Property("developer_proceeds", th.NumberType),
         th.Property("proceeds_currency", th.StringType),
         th.Property("preserved_pricing", th.StringType),
         th.Property("proceeds_reason", th.StringType),
         th.Property("client", th.StringType),
         th.Property("device", th.StringType),
         th.Property("country", th.StringType),
-        th.Property("subscriber_id", th.StringType),
+        th.Property("subscriber_id", th.IntegerType),
         th.Property("subscriber_id_reset", th.StringType),
         th.Property("refund", th.StringType),
         th.Property("purchase_date", th.StringType),
-        th.Property("units", th.StringType)  # Assuming you want this as string too
+        th.Property("units", th.IntegerType)  # Assuming you want this as string too
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.float_fields = ['developer_proceeds', 'customer_price']
+        self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
 
     def get_data(self, start_date, api):
         filters = {
@@ -173,10 +175,10 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("event_date", th.DateTimeType),
         th.Property("event", th.StringType),
         th.Property("app_name", th.StringType),
-        th.Property("app_apple_id", th.StringType),
+        th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
-        th.Property("subscription_apple_id", th.StringType),
-        th.Property("subscription_group_id", th.StringType),
+        th.Property("subscription_apple_id", th.IntegerType),
+        th.Property("subscription_group_id", th.IntegerType),
         th.Property("standard_subscription_duration", th.StringType),
         th.Property("promotional_offer_name", th.StringType),
         th.Property("promotional_offer_id", th.StringType),
@@ -186,7 +188,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("marketing_opt_in_duration", th.StringType),
         th.Property("preserved_pricing", th.StringType),
         th.Property("proceeds_reason", th.StringType),
-        th.Property("consecutive_paid_periods", th.StringType),
+        th.Property("consecutive_paid_periods", th.IntegerType),
         th.Property("paid_service_days_recovered", th.StringType),
         th.Property("original_start_date", th.DateTimeType),
         th.Property("client", th.StringType),
@@ -197,12 +199,13 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("previous_subscription_apple_id", th.StringType),
         th.Property("days_before_canceling", th.StringType),
         th.Property("cancellation_reason", th.StringType),
-        th.Property("days_canceled", th.StringType),
-        th.Property("quantity", th.StringType)
+        th.Property("days_canceled", th.IntegerType),
+        th.Property("quantity", th.IntegerType)
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.int_fields = ['consecutive_paid_periods', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id', 'days_canceled', 'quantity']
 
     def get_data(self, start_date, api):
         filters = {
@@ -222,9 +225,9 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("start_date", th.DateTimeType),
         th.Property("end_date", th.DateTimeType),
         th.Property("vendor_identifier", th.StringType),
-        th.Property("quantity", th.StringType),
-        th.Property("partner_share", th.StringType),
-        th.Property("extended_partner_share", th.StringType),
+        th.Property("quantity", th.IntegerType),
+        th.Property("partner_share", th.NumberType),
+        th.Property("extended_partner_share", th.NumberType),
         th.Property("partner_share_currency", th.StringType),
         th.Property("sales_or_return", th.StringType),
         th.Property("apple_identifier", th.StringType),
@@ -233,12 +236,21 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("country_of_sale", th.StringType),
         th.Property("pre_order_flag", th.StringType),
         th.Property("promo_code", th.StringType),
-        th.Property("customer_price", th.StringType),
+        th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType)
     ).to_dict()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.float_fields = ['customer_price', 'partner_share', 'extended_partner_share']
+        self.int_fields = ['quantity']
+
+        # These date fields are Month/Date/Year
+        # so we have to convert them
+        self.date_fields = {
+            'start_date': '%m/%d/%Y',
+            'end_date': '%m/%d/%Y',
+        }
 
     def get_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],
