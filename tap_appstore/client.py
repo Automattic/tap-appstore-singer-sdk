@@ -146,13 +146,14 @@ class AppStoreStream(RESTStream):
             return None
 
     def convert_fields(self, record, fields, target_type):
+        """Converts specified fields in a record to a target type."""
         for field in fields:
             if field in record and record[field] is not None:
                 try:
                     record[field] = target_type(record[field])
                 except ValueError:
                     logger.warning(f"Invalid format for {field}: {record[field]}")
-                    record[field] = None  # Decide on fallback behavior here
+                    record[field] = None
 
     @property
     def url_base(self) -> str:
