@@ -60,7 +60,7 @@ class SalesReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SALES',
             'reportSubType': 'SUMMARY',
-            'reportDate': self.get_report_date(start_date),
+            'reportDate': start_date.strftime(self.DATE_FORMAT),
             'version': '1_0',
             'vendorNumber': self.config['vendor_number']
         }
@@ -111,7 +111,7 @@ class SubscriberReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIBER',
             'reportSubType': 'DETAILED',
-            'reportDate': self.get_report_date(start_date),
+            'reportDate': start_date.strftime(self.DATE_FORMAT),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -181,7 +181,7 @@ class SubscriptionReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': self.get_report_date(start_date),
+            'reportDate': start_date.strftime(self.DATE_FORMAT),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -235,7 +235,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': self.get_report_date(start_date),
+            'reportDate': start_date.strftime(self.DATE_FORMAT),
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -243,8 +243,8 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 
 class FinancialReportStream(client.AppStoreStream):
+    DATE_FORMAT = '%Y-%m'
     DATE_INCREMENT = relativedelta(months=1)
-
     name = "financial_reports"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
@@ -281,10 +281,7 @@ class FinancialReportStream(client.AppStoreStream):
         filters = {'vendorNumber': self.config['vendor_number'],
                    'regionCode': 'US',
                    'reportType': 'FINANCIAL',
-                   'reportDate': self.get_report_date(start_date),
+                   'reportDate': start_date.strftime(self.DATE_FORMAT),
                    }
         return api.download_finance_reports(filters=filters)
 
-    def get_report_date(self, date):
-        """Return the report date formatted as year-month for financial reports."""
-        return date.strftime('%Y-%m')

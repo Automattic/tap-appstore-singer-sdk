@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class AppStoreStream(RESTStream):
     """AppStore stream class."""
-
+    DATE_FORMAT = '%Y-%m-%d'
     DATE_INCREMENT = timedelta(days=1)
 
     def __init__(self, *args, **kwargs):
@@ -49,10 +49,6 @@ class AppStoreStream(RESTStream):
         except ValueError as e:
             logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
             return None
-
-    def get_report_date(self, date):
-        """Return the report date formatted according to the specific needs of the stream."""
-        return date.strftime('%Y-%m-%d')
 
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
@@ -92,7 +88,8 @@ class AppStoreStream(RESTStream):
         while start_date <= date_limit:
 
             try:
-                logger.info(f"report_date: {self.get_report_date(start_date)}")
+                report_date = start_date.strftime(self.DATE_FORMAT)
+                logger.info(f"report_date: {report_date}")
                 all_data = self.download_data(start_date, self.api)
 
                 data_io = StringIO(all_data)
@@ -107,7 +104,7 @@ class AppStoreStream(RESTStream):
                     line_id += 1
                     record['_line_id'] = line_id
                     record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-                    record['_api_report_date'] = self.get_report_date(start_date)
+                    record['_api_report_date'] = report_date
 
                     processed_record = self.process_record(record)
                     if processed_record is not None:
