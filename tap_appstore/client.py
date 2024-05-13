@@ -52,7 +52,7 @@ class AppStoreStream(RESTStream):
 
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
-        return None
+        raise NotImplementedError("Subclasses must implement this method.")
 
     def process_record(self, record):
         """Convert ints, floats, and date fields"""
