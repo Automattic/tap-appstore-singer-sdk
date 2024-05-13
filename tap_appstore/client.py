@@ -115,8 +115,6 @@ class AppStoreStream(RESTStream):
                     if processed_record is not None:
                         yield processed_record
 
-                    yield record
-
             except APIError as e:
                 logger.error(f'Error during download report {self.name}.\n{e}')
 
