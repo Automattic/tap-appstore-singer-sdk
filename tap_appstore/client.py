@@ -48,7 +48,7 @@ class AppStoreStream(RESTStream):
             return datetime.strptime(start_date_str, date_format)
         except ValueError as e:
             logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
-            return None
+            raise
 
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
@@ -112,6 +112,7 @@ class AppStoreStream(RESTStream):
 
             except APIError as e:
                 logger.error(f'Error during download report {self.name}.\n{e}')
+                raise
 
             start_date += self.DATE_INCREMENT
             self.update_stream_state(start_date)
