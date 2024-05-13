@@ -243,6 +243,8 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 
 class FinancialReportStream(client.AppStoreStream):
+    DATE_INCREMENT = relativedelta(months=1)
+
     name = "financial_reports"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
@@ -282,10 +284,6 @@ class FinancialReportStream(client.AppStoreStream):
                    'reportDate': self.get_report_date(start_date),
                    }
         return api.download_finance_reports(filters=filters)
-
-    def increment_date(self, date):
-        """Increment date by one month."""
-        return date + relativedelta(months=1)
 
     def get_report_date(self, date):
         """Return the report date formatted as year-month for financial reports."""

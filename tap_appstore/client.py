@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 class AppStoreStream(RESTStream):
     """AppStore stream class."""
 
+    DATE_INCREMENT = timedelta(days=1)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
@@ -70,10 +72,6 @@ class AppStoreStream(RESTStream):
                     record[field] = self.convert_date(record[field], format)
 
         return record
-
-    def increment_date(self, date):
-        """Increment date by one day. Override in subclass if different increment is needed."""
-        return date + timedelta(days=1)
 
     def update_stream_state(self, date):
         """Update the stream state with the new date."""
@@ -118,7 +116,7 @@ class AppStoreStream(RESTStream):
             except APIError as e:
                 logger.error(f'Error during download report {self.name}.\n{e}')
 
-            start_date = self.increment_date(start_date)
+            start_date += self.DATE_INCREMENT
             self.update_stream_state(start_date)
 
 
