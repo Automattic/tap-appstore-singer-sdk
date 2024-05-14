@@ -39,7 +39,7 @@ class AppStoreStream(RESTStream):
 
     def setup_api_connection(self):
         """Set up the API connection using provided configuration."""
-        return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'])
+        return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'], submit_stats=False)
 
     def get_start_date(self, date_format='%Y-%m-%d', default_date='2024-01-01'):
         """Retrieve the configured start date, formatted as specified."""
