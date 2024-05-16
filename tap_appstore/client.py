@@ -33,8 +33,8 @@ class AppStoreStream(RESTStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
-        self.float_fields = None
-        self.int_fields = None
+        self.float_fields = [name for name, prop in self.schema["properties"].items() if 'number' in prop['type']]
+        self.int_fields = [name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']]
         self.date_fields = None
 
     def setup_api_connection(self):

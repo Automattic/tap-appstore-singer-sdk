@@ -50,12 +50,7 @@ class SalesReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.float_fields = ['developer_proceeds', 'customer_price']
-        self.int_fields = ['units', 'apple_identifier']
-        self.date_fields = {
-            'begin_date': '%m/%d/%Y',
-            'end_date': '%m/%d/%Y',
-        }
+        self.date_fields = {'begin_date': '%m/%d/%Y', 'end_date': '%m/%d/%Y'}
 
     def download_data(self, start_date, api):
         filters = {
@@ -107,8 +102,6 @@ class SubscriberReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.float_fields = ['developer_proceeds', 'customer_price']
-        self.int_fields = ['units', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id']
 
     def download_data(self, start_date, api):
         filters = {
@@ -167,20 +160,6 @@ class SubscriptionReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.float_fields = ['developer_proceeds', 'customer_price']
-        self.int_fields = ['app_apple_id', 'active_standard_price_subscriptions',
-                           'active_free_trial_introductory_offer_subscriptions',
-                           'active_pay_up_front_introductory_offer_subscriptions',
-                           'active_pay_as_you_go_introductory_offer_subscriptions',
-                           'free_trial_offer_code_subscriptions',
-                           'free_trial_promotional_offer_subscriptions',
-                           'pay_as_you_go_offer_code_subscriptions',
-                           'pay_up_front_promotional_offer_subscriptions',
-                           'pay_up_front_offer_code_subscriptions',
-                           'pay_as_you_go_promotional_offer_subscriptions',
-                           'marketing_opt_ins',
-                           'billing_retry',
-                           'grace_period']
 
     def download_data(self, start_date, api):
         filters = {
@@ -235,8 +214,6 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.int_fields = ['consecutive_paid_periods', 'app_apple_id', 'subscription_apple_id', 'subscription_group_id',
-                           'days_canceled', 'quantity']
 
     def download_data(self, start_date, api):
         filters = {
@@ -278,8 +255,6 @@ class FinancialReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.float_fields = ['customer_price', 'partner_share', 'extended_partner_share']
-        self.int_fields = ['quantity']
         self.date_fields = {
             'start_date': '%m/%d/%Y',
             'end_date': '%m/%d/%Y',
