@@ -12,10 +12,12 @@ logger = logging.getLogger(__name__)
 
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
+    replication_key = "start_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.StringType),
+        th.Property("start_date", th.DateTimeType),
         th.Property("provider", th.StringType),
         th.Property("provider_country", th.StringType),
         th.Property("sku", th.StringType),
@@ -60,7 +62,7 @@ class SalesReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SALES',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime(self.DATE_FORMAT),
+            'reportDate': start_date,
             'version': '1_0',
             'vendorNumber': self.config['vendor_number']
         }

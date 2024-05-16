@@ -69,53 +69,34 @@ class AppStoreStream(RESTStream):
 
         return record
 
-    def update_stream_state(self, date):
-        """Update the stream state with the new date."""
-        self.stream_state['start_date'] = date.strftime('%Y-%m-%d')
-        self.logger.info(f"Updating state, new start date is {self.stream_state['start_date']}")
 
     def get_records(self, context: dict = None):
         """Return a generator of record-type dictionary objects."""
-        start_date = self.get_start_date(default_date='2024-01-01')
-        if not start_date:
-            logger.error("Start date could not be determined.")
-            return
-
-        start_date = start_date.replace(tzinfo=None)
-        date_limit = datetime.now().replace(tzinfo=None) - timedelta(days=2)
         line_id = 0
+        start_date = (self.get_starting_timestamp(context) + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
+        try:
+            all_data = self.download_data(start_date, self.api)
 
-        while start_date <= date_limit:
+            data_io = StringIO(all_data)
+            first_line = data_io.readline().strip()
+            fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
 
-            try:
-                report_date = start_date.strftime(self.DATE_FORMAT)
-                logger.info(f"report_date: {report_date}")
-                all_data = self.download_data(start_date, self.api)
+            reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
-                data_io = StringIO(all_data)
+            for record in reader:
+                line_id += 1
+                record['_line_id'] = line_id
+                record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+                record['_api_report_date'] = start_date
+                record['start_date'] = start_date
 
-                # Rename column names from 'App Name' -> 'app_name'
-                first_line = data_io.readline().strip()
-                fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
+                processed_record = self.process_record(record)
+                if processed_record is not None:
+                    yield processed_record
 
-                reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
-
-                for record in reader:
-                    line_id += 1
-                    record['_line_id'] = line_id
-                    record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-                    record['_api_report_date'] = report_date
-
-                    processed_record = self.process_record(record)
-                    if processed_record is not None:
-                        yield processed_record
-
-            except APIError as e:
-                logger.error(f'Error during download report {self.name}.\n{e}')
-                raise
-
-            start_date += self.DATE_INCREMENT
-            self.update_stream_state(start_date)
+        except APIError as e:
+            logger.error(f'Error during download report {self.name}.\n{e}')
+            raise
 
 
     @staticmethod
