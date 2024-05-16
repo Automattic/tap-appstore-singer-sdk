@@ -43,8 +43,8 @@ class AppStoreStream(RESTStream):
         self.date_fields = {name: date_format_mapping.get(name, '%Y-%m-%d') for name, prop in
                             self.schema["properties"].items() if
                             'string' in prop['type'] and prop.get('format') == 'date-time'}
-        self.float_fields = [name for name, prop in self.schema["properties"].items() if 'number' in prop['type']]
-        self.int_fields = [name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']]
+        self.float_fields = {name for name, prop in self.schema["properties"].items() if 'number' in prop['type']}
+        self.int_fields = {name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']}
 
     def setup_api_connection(self):
         """Set up the API connection using provided configuration."""
