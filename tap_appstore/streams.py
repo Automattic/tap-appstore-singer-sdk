@@ -252,6 +252,7 @@ class FinancialReportStream(client.AppStoreStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.date_fields['_api_report_date'] = '%Y-%m'
+        self.skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],

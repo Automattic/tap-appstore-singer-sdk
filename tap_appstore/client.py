@@ -33,6 +33,7 @@ class AppStoreStream(Stream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
+        self.skip_line_first_values = []
 
         date_format_mapping = {
             'begin_date': '%m/%d/%Y',
@@ -88,6 +89,11 @@ class AppStoreStream(Stream):
             reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
             for record in reader:
+                first_value = next(iter(record.values()))
+                if first_value and any(keyword in first_value for keyword in self.skip_line_first_values):
+                    logger.info(f"Skipping line: {record}")
+                    continue
+
                 line_id += 1
                 record['_line_id'] = line_id
                 record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
