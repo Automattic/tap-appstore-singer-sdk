@@ -63,7 +63,9 @@ class AppStoreStream(RESTStream):
     def get_records(self, context: dict = None):
         """Return a generator of record-type dictionary objects."""
         line_id = 0
-        start_date = (self.get_starting_timestamp(context) + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
+        starting_timestamp = self.get_starting_timestamp(context)
+        start_date = starting_timestamp if starting_timestamp else self.config.get('start_date', '2024-04-01')
+        start_date = (start_date + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
         try:
             all_data = self.download_data(start_date, self.api)
 

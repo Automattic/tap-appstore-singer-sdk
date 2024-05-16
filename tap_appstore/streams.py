@@ -71,10 +71,12 @@ class SalesReportStream(client.AppStoreStream):
 
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
+    replication_key = "start_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.StringType),
+        th.Property("start_date", th.DateTimeType),
         th.Property("event_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
@@ -113,7 +115,7 @@ class SubscriberReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIBER',
             'reportSubType': 'DETAILED',
-            'reportDate': start_date.strftime(self.DATE_FORMAT),
+            'reportDate': start_date,
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -122,10 +124,12 @@ class SubscriberReportStream(client.AppStoreStream):
 
 class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_reports"
+    replication_key = "start_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.StringType),
+        th.Property("start_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
@@ -183,7 +187,7 @@ class SubscriptionReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime(self.DATE_FORMAT),
+            'reportDate': start_date,
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
@@ -192,10 +196,12 @@ class SubscriptionReportStream(client.AppStoreStream):
 
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_reports"
+    replication_key = "start_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.StringType),
+        th.Property("start_date", th.DateTimeType),
         th.Property("event_date", th.DateTimeType),
         th.Property("event", th.StringType),
         th.Property("app_name", th.StringType),
@@ -237,7 +243,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
             'frequency': 'DAILY',
             'reportType': 'SUBSCRIPTION',
             'reportSubType': 'SUMMARY',
-            'reportDate': start_date.strftime(self.DATE_FORMAT),
+            'reportDate': start_date,
             'version': '1_3',
             'vendorNumber': self.config['vendor_number']
         }
