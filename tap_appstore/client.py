@@ -10,7 +10,7 @@ import requests
 from singer_sdk.authenticators import APIKeyAuthenticator
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.pagination import BaseAPIPaginator  # noqa: TCH002
-from singer_sdk.streams import RESTStream
+from singer_sdk.streams import Stream
 import csv
 from io import StringIO
 from appstoreconnect import Api
@@ -25,7 +25,7 @@ _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
 logger = logging.getLogger(__name__)
 
-class AppStoreStream(RESTStream):
+class AppStoreStream(Stream):
     """AppStore stream class."""
     DATE_FORMAT = '%Y-%m-%d'
     DATE_INCREMENT = timedelta(days=1)
