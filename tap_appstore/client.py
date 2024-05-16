@@ -60,7 +60,6 @@ class AppStoreStream(RESTStream):
 
         return record
 
-
     def get_records(self, context: dict = None):
         """Return a generator of record-type dictionary objects."""
         line_id = 0
@@ -88,7 +87,6 @@ class AppStoreStream(RESTStream):
         except APIError as e:
             logger.error(f'Error during download report {self.name}.\n{e}')
             raise
-
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):
