@@ -33,9 +33,18 @@ class AppStoreStream(RESTStream):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
+
+        date_format_mapping = {
+            'begin_date': '%m/%d/%Y',
+            'start_date': '%m/%d/%Y',
+            'end_date': '%m/%d/%Y',
+            '_api_report_date': '%Y-%m-%d',
+        }
+        self.date_fields = {name: date_format_mapping.get(name, '%Y-%m-%d') for name, prop in
+                            self.schema["properties"].items() if
+                            'string' in prop['type'] and prop.get('format') == 'date-time'}
         self.float_fields = [name for name, prop in self.schema["properties"].items() if 'number' in prop['type']]
         self.int_fields = [name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']]
-        self.date_fields = None
 
     def setup_api_connection(self):
         """Set up the API connection using provided configuration."""
@@ -66,6 +75,7 @@ class AppStoreStream(RESTStream):
         starting_timestamp = self.get_starting_timestamp(context)
         start_date = starting_timestamp if starting_timestamp else self.config.get('start_date', '2024-04-01')
         start_date = (start_date + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
+        logger.info(f'start_date:{start_date}')
         try:
             all_data = self.download_data(start_date, self.api)
 
@@ -80,7 +90,6 @@ class AppStoreStream(RESTStream):
                 record['_line_id'] = line_id
                 record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
                 record['_api_report_date'] = start_date
-                record['start_date'] = start_date
 
                 processed_record = self.process_record(record)
                 if processed_record is not None:

@@ -12,12 +12,11 @@ logger = logging.getLogger(__name__)
 
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
-    replication_key = "start_date"
+    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
-        th.Property("_api_report_date", th.StringType),
-        th.Property("start_date", th.DateTimeType),
+        th.Property("_api_report_date", th.DateTimeType),
         th.Property("provider", th.StringType),
         th.Property("provider_country", th.StringType),
         th.Property("sku", th.StringType),
@@ -50,7 +49,6 @@ class SalesReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.date_fields = {'begin_date': '%m/%d/%Y', 'end_date': '%m/%d/%Y'}
 
     def download_data(self, start_date, api):
         filters = {
@@ -66,12 +64,11 @@ class SalesReportStream(client.AppStoreStream):
 
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
-    replication_key = "start_date"
+    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
-        th.Property("_api_report_date", th.StringType),
-        th.Property("start_date", th.DateTimeType),
+        th.Property("_api_report_date", th.DateTimeType),
         th.Property("event_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
@@ -117,12 +114,11 @@ class SubscriberReportStream(client.AppStoreStream):
 
 class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_reports"
-    replication_key = "start_date"
+    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
-        th.Property("_api_report_date", th.StringType),
-        th.Property("start_date", th.DateTimeType),
+        th.Property("_api_report_date", th.DateTimeType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
@@ -175,12 +171,11 @@ class SubscriptionReportStream(client.AppStoreStream):
 
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_reports"
-    replication_key = "start_date"
+    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
-        th.Property("_api_report_date", th.StringType),
-        th.Property("start_date", th.DateTimeType),
+        th.Property("_api_report_date", th.DateTimeType),
         th.Property("event_date", th.DateTimeType),
         th.Property("event", th.StringType),
         th.Property("app_name", th.StringType),
@@ -228,13 +223,14 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 
 class FinancialReportStream(client.AppStoreStream):
+    name = "financial_reports"
+    replication_key = "_api_report_date"
     DATE_FORMAT = '%Y-%m'
     DATE_INCREMENT = relativedelta(months=1)
-    name = "financial_reports"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
-        th.Property("_api_report_date", th.StringType),
+        th.Property("_api_report_date", th.DateTimeType),
         th.Property("start_date", th.DateTimeType),
         th.Property("end_date", th.DateTimeType),
         th.Property("vendor_identifier", th.StringType),
@@ -255,16 +251,13 @@ class FinancialReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.date_fields = {
-            'start_date': '%m/%d/%Y',
-            'end_date': '%m/%d/%Y',
-        }
+        self.date_fields['_api_report_date'] = '%Y-%m'
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],
                    'regionCode': 'US',
                    'reportType': 'FINANCIAL',
-                   'reportDate': start_date.strftime(self.DATE_FORMAT),
+                   'reportDate': start_date,
                    }
         return api.download_finance_reports(filters=filters)
 
