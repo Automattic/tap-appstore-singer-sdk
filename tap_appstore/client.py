@@ -41,15 +41,6 @@ class AppStoreStream(RESTStream):
         """Set up the API connection using provided configuration."""
         return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'], submit_stats=False)
 
-    def get_start_date(self, date_format='%Y-%m-%d', default_date='2024-01-01'):
-        """Retrieve the configured start date, formatted as specified."""
-        start_date_str = self.config.get('start_date', default_date)
-        try:
-            return datetime.strptime(start_date_str, date_format)
-        except ValueError as e:
-            logger.error(f"Invalid start date format: {start_date_str}. Error: {e}")
-            raise
-
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         raise NotImplementedError("Subclasses must implement this method.")
