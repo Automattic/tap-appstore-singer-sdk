@@ -108,7 +108,7 @@ class AppStoreStream(Stream):
             return datetime.strptime(date_str, date_format).isoformat()
         except ValueError as e:
             logger.error(f"Date conversion error for date: '{date_str}' with format '{date_format}' | Error: {str(e)}")
-            return None
+            raise
 
     def convert_fields(self, record, fields, target_type):
         """Converts specified fields in a record to a target type."""
@@ -118,4 +118,4 @@ class AppStoreStream(Stream):
                     record[field] = target_type(record[field])
                 except ValueError:
                     logger.warning(f"Invalid format for {field}: {record[field]}")
-                    record[field] = None
+                    raise
