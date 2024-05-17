@@ -13,11 +13,6 @@ from io import StringIO
 from appstoreconnect import Api
 from appstoreconnect.api import APIError
 
-if sys.version_info >= (3, 9):
-    import importlib.resources as importlib_resources
-else:
-    import importlib_resources
-
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
 logger = logging.getLogger(__name__)
@@ -64,13 +59,11 @@ class AppStoreStream(Stream):
         """Return a generator of record-type dictionary objects."""
         line_id = 0
         starting_timestamp = self.get_starting_timestamp(context)
-        start_date = starting_timestamp if starting_timestamp else self.config.get('start_date', '2024-04-01')
-        start_date = (start_date + self.date_increment).strftime(self.date_format)
-        logger.info(f'Extracting {self.tap_stream_id} starting from {start_date}')
-        try:
-            all_data = self.download_data(start_date, self.api)
+        start_date = starting_timestamp + self.date_increment if starting_timestamp else self.config['start_date']
 
-            data_io = StringIO(all_data)
+        while report := self._get_report(start_date):
+            logger.info(f'Extracting {self.tap_stream_id} starting from {start_date.strftime(self.date_format)}')
+            data_io = StringIO(report)
             first_line = data_io.readline().strip()
             fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
 
@@ -79,20 +72,29 @@ class AppStoreStream(Stream):
             for record in reader:
                 first_value = next(iter(record.values()))
                 if first_value and any(keyword in first_value for keyword in self.skip_line_first_values):
-                    logger.info(f"Skipping line: {record}")
+                    logger.info(f"Skipping line report {start_date.strftime(self.date_format)}: {record.values()}")
                     continue
 
                 line_id += 1
                 record['_line_id'] = line_id
                 record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-                record['_api_report_date'] = start_date
+                record['_api_report_date'] = start_date.strftime(self.date_format)
 
                 processed_record = self.post_process(record, context)
                 if processed_record is not None:
+                    logger.info(processed_record['_api_report_date'])
                     yield processed_record
 
+            start_date += self.date_increment
+
+    def _get_report(self, start_date):
+        try:
+            return self.download_data(start_date.strftime(self.date_format), self.api)
+
         except APIError as e:
-            logger.error(f'Error during download report {self.name}.\n{e}')
+            if str(e).startswith('There were no') and str(e).endswith('for the date specified.') or str(e).startswith('Report is not available yet'):
+                logger.info(str(e))
+                return None
             raise
 
     @staticmethod
