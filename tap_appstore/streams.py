@@ -52,7 +52,6 @@ class SalesReportStream(client.AppStoreStream):
         self.date_fields['begin_date'] = '%m/%d/%Y'
         self.date_fields['end_date'] = '%m/%d/%Y'
 
-
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
@@ -99,9 +98,6 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("purchase_date", th.StringType),
         th.Property("units", th.IntegerType)
     ).to_dict()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def download_data(self, start_date, api):
         filters = {
@@ -157,9 +153,6 @@ class SubscriptionReportStream(client.AppStoreStream):
         th.Property("grace_period", th.IntegerType)
     ).to_dict()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
@@ -209,9 +202,6 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("days_canceled", th.IntegerType),
         th.Property("quantity", th.IntegerType)
     ).to_dict()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def download_data(self, start_date, api):
         filters = {
