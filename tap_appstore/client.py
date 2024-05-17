@@ -66,7 +66,7 @@ class AppStoreStream(Stream):
         starting_timestamp = self.get_starting_timestamp(context)
         start_date = starting_timestamp if starting_timestamp else self.config.get('start_date', '2024-04-01')
         start_date = (start_date + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
-        logger.info(f'start_date:{start_date}')
+        logger.info(f'Extracting {self.stream_name} starting from {start_date}')
         try:
             all_data = self.download_data(start_date, self.api)
 
