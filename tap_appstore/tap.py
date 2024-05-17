@@ -33,7 +33,6 @@ class TapAppStore(Tap):
         th.Property(
             "vendor",
             th.StringType,
-            default="https://api.mysample.com",
             description="The ID of the vendor",
         ),
         th.Property(

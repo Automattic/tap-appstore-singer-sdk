@@ -59,7 +59,7 @@ class SalesReportStream(client.AppStoreStream):
             'reportSubType': 'SUMMARY',
             'reportDate': start_date,
             'version': '1_0',
-            'vendorNumber': self.config['vendor_number']
+            'vendorNumber': self.config['vendor']
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -106,7 +106,7 @@ class SubscriberReportStream(client.AppStoreStream):
             'reportSubType': 'DETAILED',
             'reportDate': start_date,
             'version': '1_3',
-            'vendorNumber': self.config['vendor_number']
+            'vendorNumber': self.config['vendor']
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -160,7 +160,7 @@ class SubscriptionReportStream(client.AppStoreStream):
             'reportSubType': 'SUMMARY',
             'reportDate': start_date,
             'version': '1_3',
-            'vendorNumber': self.config['vendor_number']
+            'vendorNumber': self.config['vendor']
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -210,7 +210,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
             'reportSubType': 'SUMMARY',
             'reportDate': start_date,
             'version': '1_3',
-            'vendorNumber': self.config['vendor_number']
+            'vendorNumber': self.config['vendor']
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -250,7 +250,7 @@ class FinancialReportStream(client.AppStoreStream):
         self.date_fields['end_date'] = '%m/%d/%Y'
 
     def download_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor_number'],
+        filters = {'vendorNumber': self.config['vendor'],
                    'regionCode': 'US',
                    'reportType': 'FINANCIAL',
                    'reportDate': start_date,

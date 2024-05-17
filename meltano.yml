@@ -25,7 +25,7 @@ plugins:
       - name: issuer_id
         kind: password
         sensitive: true
-      - name: vendor_number
+      - name: vendor
         kind: password
         sensitive: true
       - name: start_date
