@@ -26,11 +26,11 @@ class AppStoreStream(Stream):
     """AppStore stream class."""
     date_format = '%Y-%m-%d'
     date_increment = timedelta(days=1)
+    skip_line_first_values = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
-        self.skip_line_first_values = []
         self.date_fields = {'_api_report_date': '%Y-%m-%d'}
         self.float_fields = {name for name, prop in self.schema["properties"].items() if 'number' in prop['type']}
         self.int_fields = {name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']}

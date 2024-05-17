@@ -220,6 +220,7 @@ class FinancialReportStream(client.AppStoreStream):
     replication_key = "_api_report_date"
     date_format = '%Y-%m'
     date_increment = relativedelta(months=1)
+    skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -247,7 +248,6 @@ class FinancialReportStream(client.AppStoreStream):
         self.date_fields['_api_report_date'] = '%Y-%m' #Overriding from base class
         self.date_fields['start_date'] = '%m/%d/%Y'
         self.date_fields['end_date'] = '%m/%d/%Y'
-        self.skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor_number'],
