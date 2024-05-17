@@ -28,16 +28,19 @@ class TapAppStore(Tap):
         th.Property(
             "issuer_id",
             th.StringType,
+            required=True,
             description="The ID of the issuer",
         ),
         th.Property(
             "vendor",
             th.StringType,
+            required=True,
             description="The ID of the vendor",
         ),
         th.Property(
             "start_date",
             th.DateTimeType,
+            required=True,
             description="The earliest record date to sync",
         ),
     ).to_dict()
