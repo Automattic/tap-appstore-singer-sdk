@@ -100,12 +100,6 @@ class AppStoreStream(Stream):
         """Converts date string to ISO format based on the given date format, defaulting to '%Y-%m-%d'.
            Returns None if the date string is invalid or empty.
         """
-
-        if not date_str:
-            logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
-            return None
-
-        date_str = date_str.strip()
         if not date_str:
             logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
             return None
