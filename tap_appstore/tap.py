@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
-
-# TODO: Import your custom stream types here:
 from tap_appstore import streams
 
 
@@ -14,20 +12,17 @@ class TapAppStore(Tap):
 
     name = "tap-appstore"
 
-    # TODO: Update this section with the actual config values you expect:
     config_jsonschema = th.PropertiesList(
         th.Property(
             "key_id",
             th.StringType,
             required=True,
-            secret=True,  # Flag config as protected.
             description="The AppStore key ID",
         ),
         th.Property(
             "key_file",
             th.StringType,
             required=True,
-            secret=True,
             description="Path to the AppStore key file",
         ),
         th.Property(
