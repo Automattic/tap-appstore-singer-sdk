@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-from typing import Any, Callable, Iterable
+from typing import Callable
 from datetime import datetime, timedelta
 import logging
 import requests
@@ -22,11 +21,13 @@ class AppStoreStream(Stream):
     date_format = '%Y-%m-%d'
     date_increment = timedelta(days=1)
     skip_line_first_values = []
+    replication_key = '_api_report_date'
+    is_sorted = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
-        self.date_fields = {'_api_report_date': '%Y-%m-%d'}
+        self.date_fields = {'_api_report_date': self.date_format}
         self.float_fields = {name for name, prop in self.schema["properties"].items() if 'number' in prop['type']}
         self.int_fields = {name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']}
 
@@ -62,7 +63,8 @@ class AppStoreStream(Stream):
         start_date = starting_timestamp + self.date_increment if starting_timestamp else self.config['start_date']
 
         while report := self._get_report(start_date):
-            logger.info(f'Extracting {self.tap_stream_id} starting from {start_date.strftime(self.date_format)}')
+            start_date_fmt = start_date.strftime(self.date_format)
+            logger.info(f'Extracting {self.tap_stream_id} starting from {start_date_fmt}')
             data_io = StringIO(report)
             first_line = data_io.readline().strip()
             fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
@@ -72,17 +74,16 @@ class AppStoreStream(Stream):
             for record in reader:
                 first_value = next(iter(record.values()))
                 if first_value and any(keyword in first_value for keyword in self.skip_line_first_values):
-                    logger.info(f"Skipping line report {start_date.strftime(self.date_format)}: {record.values()}")
+                    logger.info(f"Skipping line report {start_date_fmt}: {record.values()}")
                     continue
 
                 line_id += 1
                 record['_line_id'] = line_id
                 record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-                record['_api_report_date'] = start_date.strftime(self.date_format)
+                record['_api_report_date'] = start_date_fmt
 
                 processed_record = self.post_process(record, context)
                 if processed_record is not None:
-                    logger.info(processed_record['_api_report_date'])
                     yield processed_record
 
             start_date += self.date_increment

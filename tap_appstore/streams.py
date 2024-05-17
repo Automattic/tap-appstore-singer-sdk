@@ -1,6 +1,9 @@
 """Stream type classes for tap-appstore."""
 
 from __future__ import annotations
+
+import datetime
+
 from singer_sdk import typing as th
 
 from dateutil.relativedelta import relativedelta
@@ -12,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class SalesReportStream(client.AppStoreStream):
     name = "sales_reports"
-    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -66,7 +68,6 @@ class SalesReportStream(client.AppStoreStream):
 
 class SubscriberReportStream(client.AppStoreStream):
     name = "subscriber_reports"
-    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -113,7 +114,6 @@ class SubscriberReportStream(client.AppStoreStream):
 
 class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_reports"
-    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -167,7 +167,6 @@ class SubscriptionReportStream(client.AppStoreStream):
 
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_reports"
-    replication_key = "_api_report_date"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -217,7 +216,6 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 class FinancialReportStream(client.AppStoreStream):
     name = "financial_reports"
-    replication_key = "_api_report_date"
     date_format = '%Y-%m'
     date_increment = relativedelta(months=1)
     skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
@@ -245,7 +243,6 @@ class FinancialReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.date_fields['_api_report_date'] = '%Y-%m' #Overriding from base class
         self.date_fields['start_date'] = '%m/%d/%Y'
         self.date_fields['end_date'] = '%m/%d/%Y'
 
