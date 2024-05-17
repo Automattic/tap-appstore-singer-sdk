@@ -31,16 +31,7 @@ class AppStoreStream(Stream):
         super().__init__(*args, **kwargs)
         self.api = self.setup_api_connection()
         self.skip_line_first_values = []
-
-        date_format_mapping = {
-            'begin_date': '%m/%d/%Y',
-            'start_date': '%m/%d/%Y',
-            'end_date': '%m/%d/%Y',
-            '_api_report_date': '%Y-%m-%d',
-        }
-        self.date_fields = {name: date_format_mapping.get(name, '%Y-%m-%d') for name, prop in
-                            self.schema["properties"].items() if
-                            'string' in prop['type'] and prop.get('format') == 'date-time'}
+        self.date_fields = {'_api_report_date': '%Y-%m-%d'}
         self.float_fields = {name for name, prop in self.schema["properties"].items() if 'number' in prop['type']}
         self.int_fields = {name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']}
 
