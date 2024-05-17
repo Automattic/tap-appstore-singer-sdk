@@ -7,9 +7,6 @@ from typing import Any, Callable, Iterable
 from datetime import datetime, timedelta
 import logging
 import requests
-from singer_sdk.authenticators import APIKeyAuthenticator
-from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.pagination import BaseAPIPaginator  # noqa: TCH002
 from singer_sdk.streams import Stream
 import csv
 from io import StringIO

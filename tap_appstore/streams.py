@@ -1,7 +1,7 @@
 """Stream type classes for tap-appstore."""
 
 from __future__ import annotations
-from singer_sdk import Stream, typing as th
+from singer_sdk import typing as th
 
 from dateutil.relativedelta import relativedelta
 import logging
