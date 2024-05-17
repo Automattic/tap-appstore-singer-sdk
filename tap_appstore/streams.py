@@ -218,8 +218,8 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 class FinancialReportStream(client.AppStoreStream):
     name = "financial_reports"
     replication_key = "_api_report_date"
-    DATE_FORMAT = '%Y-%m'
-    DATE_INCREMENT = relativedelta(months=1)
+    date_format = '%Y-%m'
+    date_increment = relativedelta(months=1)
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),

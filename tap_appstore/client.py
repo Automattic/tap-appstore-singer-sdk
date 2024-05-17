@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class AppStoreStream(Stream):
     """AppStore stream class."""
-    DATE_FORMAT = '%Y-%m-%d'
-    DATE_INCREMENT = timedelta(days=1)
+    date_format = '%Y-%m-%d'
+    date_increment = timedelta(days=1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,7 +65,7 @@ class AppStoreStream(Stream):
         line_id = 0
         starting_timestamp = self.get_starting_timestamp(context)
         start_date = starting_timestamp if starting_timestamp else self.config.get('start_date', '2024-04-01')
-        start_date = (start_date + self.DATE_INCREMENT).strftime(self.DATE_FORMAT)
+        start_date = (start_date + self.date_increment).strftime(self.date_format)
         logger.info(f'Extracting {self.tap_stream_id} starting from {start_date}')
         try:
             all_data = self.download_data(start_date, self.api)
