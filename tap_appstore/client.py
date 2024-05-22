@@ -11,7 +11,6 @@ import csv
 from io import StringIO
 from appstoreconnect import Api
 from appstoreconnect.api import APIError
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_not_exception_type
 
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
@@ -36,13 +35,6 @@ class AppStoreStream(Stream):
         """Set up the API connection using provided configuration."""
         return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'], submit_stats=False)
 
-    @retry(
-        retry=retry_if_not_exception_type(APIError),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=300, max=1800),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-
-    )
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         raise NotImplementedError("Subclasses must implement this method.")

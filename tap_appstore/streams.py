@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import datetime
-
+from appstoreconnect.api import APIError
 from singer_sdk import typing as th
 
 from dateutil.relativedelta import relativedelta
 import logging
 from tap_appstore import client
+
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_not_exception_type
+
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +104,13 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("units", th.IntegerType)
     ).to_dict()
 
+    @retry(
+        retry=retry_if_not_exception_type(APIError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=3, min=300, max=1800),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+
+    )
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
@@ -251,6 +260,13 @@ class FinancialReportStream(client.AppStoreStream):
         self.date_fields['start_date'] = '%m/%d/%Y'
         self.date_fields['end_date'] = '%m/%d/%Y'
 
+    @retry(
+        retry=retry_if_not_exception_type(APIError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=3, min=300, max=1800),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+
+    )
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
                    'regionCode': 'US',
