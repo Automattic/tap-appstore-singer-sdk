@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class SalesReportStream(client.AppStoreStream):
-    name = "sales_reports"
+    name = "sales_report"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -67,7 +67,7 @@ class SalesReportStream(client.AppStoreStream):
 
 
 class SubscriberReportStream(client.AppStoreStream):
-    name = "subscriber_reports"
+    name = "subscriber_report"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -113,7 +113,7 @@ class SubscriberReportStream(client.AppStoreStream):
 
 
 class SubscriptionReportStream(client.AppStoreStream):
-    name = "subscription_reports"
+    name = "subscription_report"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -166,7 +166,7 @@ class SubscriptionReportStream(client.AppStoreStream):
 
 
 class SubscriptionEventReportStream(client.AppStoreStream):
-    name = "subscription_event_reports"
+    name = "subscription_event_report"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -215,7 +215,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 
 class FinancialReportStream(client.AppStoreStream):
-    name = "financial_reports"
+    name = "financial_report"
     date_format = '%Y-%m'
     date_increment = relativedelta(months=1)
     skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
