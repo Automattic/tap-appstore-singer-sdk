@@ -36,6 +36,13 @@ class AppStoreStream(Stream):
         """Set up the API connection using provided configuration."""
         return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'], submit_stats=False)
 
+    @retry(
+        retry=retry_if_not_exception_type(APIError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=3, min=300, max=1800),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+
+    )
     def download_data(self, start_date, api):
         """Set up the endpoint for the API call. Override in subclass as needed."""
         raise NotImplementedError("Subclasses must implement this method.")
@@ -89,13 +96,6 @@ class AppStoreStream(Stream):
 
             start_date += self.date_increment
 
-    @retry(
-        retry=retry_if_not_exception_type(APIError),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=300, max=1800),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-
-    )
     def _get_report(self, start_date):
         try:
             return self.download_data(start_date.strftime(self.date_format), self.api)
