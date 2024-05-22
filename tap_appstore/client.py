@@ -91,7 +91,7 @@ class AppStoreStream(Stream):
 
     @retry(
         stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=3, max=18),
+        wait=wait_exponential(multiplier=3, min=300, max=1800),
         before_sleep=before_sleep_log(logger, logging.WARNING)
     )
     def _get_report(self, start_date):
