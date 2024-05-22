@@ -100,13 +100,6 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("units", th.IntegerType)
     ).to_dict()
 
-    @retry(
-        retry=retry_if_not_exception_type(APIError),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=300, max=1800),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-
-    )
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
