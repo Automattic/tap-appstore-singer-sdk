@@ -100,6 +100,10 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("units", th.IntegerType)
     ).to_dict()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.date_fields['event_date'] = '%Y-%m-%d'
+
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
