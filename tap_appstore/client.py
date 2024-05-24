@@ -68,7 +68,7 @@ class AppStoreStream(Stream):
             logger.info(f'Extracting {self.tap_stream_id} starting from {start_date_fmt}')
             data_io = StringIO(report)
             first_line = data_io.readline().strip()
-            fieldnames = [col.strip().replace(' ', '_').lower() for col in first_line.split('\t')]
+            fieldnames = [col.strip().replace(' ', '_').replace('-', '_').lower() for col in first_line.split('\t')]
 
             reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
