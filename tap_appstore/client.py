@@ -82,6 +82,7 @@ class AppStoreStream(Stream):
                 record['_line_id'] = line_id
                 record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
                 record['_api_report_date'] = start_date_fmt
+                record['vendor_number'] = self.config['vendor']
 
                 processed_record = self.post_process(record, context)
                 if processed_record is not None:
