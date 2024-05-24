@@ -211,7 +211,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
-            'reportType': 'SUBSCRIPTION',
+            'reportType': 'SUBSCRIPTION_EVENT',
             'reportSubType': 'SUMMARY',
             'reportDate': start_date,
             'version': '1_3',
