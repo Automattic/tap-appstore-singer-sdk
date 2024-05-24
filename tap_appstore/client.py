@@ -126,8 +126,12 @@ class AppStoreStream(Stream):
         """Converts specified fields in a record to a target type."""
         for field in fields:
             if field in record and record[field] is not None:
-                try:
-                    record[field] = target_type(record[field])
-                except ValueError:
-                    logger.warning(f"Invalid format for {field}: {record[field]}")
-                    raise
+                if isinstance(record[field], str) and record[field].strip() == "":
+                    record[field] = None
+                if record[field] is not None:
+                    try:
+                        record[field] = target_type(record[field])
+                    except ValueError:
+                        logger.warning(f"Invalid format for {field}: {record[field]}")
+                        raise
+
