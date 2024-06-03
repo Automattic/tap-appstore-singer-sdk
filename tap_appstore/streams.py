@@ -27,8 +27,8 @@ class SalesReportStream(client.AppStoreStream):
         th.Property("product_type_identifier", th.StringType),
         th.Property("units", th.IntegerType),
         th.Property("developer_proceeds", th.NumberType),
-        th.Property("begin_date", th.DateTimeType),
-        th.Property("end_date", th.DateTimeType),
+        th.Property("begin_date", th.StringType),
+        th.Property("end_date", th.StringType),
         th.Property("customer_currency", th.StringType),
         th.Property("country_code", th.StringType),
         th.Property("currency_of_proceeds", th.StringType),
@@ -50,8 +50,6 @@ class SalesReportStream(client.AppStoreStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.date_fields['begin_date'] = '%m/%d/%Y'
-        self.date_fields['end_date'] = '%m/%d/%Y'
 
     def download_data(self, start_date, api):
         filters = {
