@@ -48,9 +48,6 @@ class SalesReportStream(client.AppStoreStream):
         th.Property("order_type", th.StringType)
     ).to_dict()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def download_data(self, start_date, api):
         filters = {
             'frequency': 'DAILY',
@@ -70,7 +67,7 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.DateTimeType),
         th.Property("vendor_number", th.StringType),
-        th.Property("event_date", th.DateTimeType),
+        th.Property("event_date", th.StringType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
         th.Property("subscription_name", th.StringType),
@@ -97,10 +94,6 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("purchase_date", th.StringType),
         th.Property("units", th.IntegerType)
     ).to_dict()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.date_fields['event_date'] = '%Y-%m-%d'
 
     def download_data(self, start_date, api):
         filters = {
@@ -175,7 +168,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("_time_extracted", th.StringType),
         th.Property("_api_report_date", th.DateTimeType),
         th.Property("vendor_number", th.StringType),
-        th.Property("event_date", th.DateTimeType),
+        th.Property("event_date", th.StringType),
         th.Property("event", th.StringType),
         th.Property("app_name", th.StringType),
         th.Property("app_apple_id", th.IntegerType),
@@ -229,8 +222,8 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("_api_report_date", th.DateTimeType),
         th.Property("vendor_identifier", th.StringType),
         th.Property("vendor_number", th.StringType),
-        th.Property("start_date", th.DateTimeType),
-        th.Property("end_date", th.DateTimeType),
+        th.Property("start_date", th.StringType),
+        th.Property("end_date", th.StringType),
         th.Property("quantity", th.IntegerType),
         th.Property("partner_share", th.NumberType),
         th.Property("extended_partner_share", th.NumberType),
@@ -245,11 +238,6 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType)
     ).to_dict()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.date_fields['start_date'] = '%m/%d/%Y'
-        self.date_fields['end_date'] = '%m/%d/%Y'
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
