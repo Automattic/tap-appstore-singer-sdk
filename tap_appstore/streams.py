@@ -241,7 +241,7 @@ class FinancialReportStream(client.AppStoreStream):
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
-                   'regionCode': 'US',
+                   'regionCode': 'ZZ',
                    'reportType': 'FINANCIAL',
                    'reportDate': start_date,
                    }
