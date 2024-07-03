@@ -110,6 +110,7 @@ class SubscriberReportStream(client.AppStoreStream):
 
 class SubscriptionReportStream(client.AppStoreStream):
     name = "subscription_report"
+    replication_key = None
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -170,6 +171,7 @@ class SubscriptionReportStream(client.AppStoreStream):
 
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_report"
+    replication_key = None
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
