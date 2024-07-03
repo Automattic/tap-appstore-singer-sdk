@@ -2,149 +2,139 @@
 
 from __future__ import annotations
 
-import sys
-from typing import Any, Callable, Iterable
-
+from typing import Callable
+from datetime import datetime, timedelta
+import logging
 import requests
-from singer_sdk.authenticators import APIKeyAuthenticator
-from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.pagination import BaseAPIPaginator  # noqa: TCH002
-from singer_sdk.streams import RESTStream
-
-if sys.version_info >= (3, 9):
-    import importlib.resources as importlib_resources
-else:
-    import importlib_resources
+from singer_sdk.streams import Stream
+import csv
+from io import StringIO
+from appstoreconnect import Api
+from appstoreconnect.api import APIError
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_not_exception_type
 
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
-# TODO: Delete this is if not using json files for schema definition
-SCHEMAS_DIR = importlib_resources.files(__package__) / "schemas"
+logger = logging.getLogger(__name__)
 
-
-class AppStoreStream(RESTStream):
+class AppStoreStream(Stream):
     """AppStore stream class."""
+    date_format = '%Y-%m-%d'
+    date_increment = timedelta(days=1)
+    skip_line_first_values = []
+    replication_key = '_api_report_date'
+    is_sorted = True
 
-    @property
-    def url_base(self) -> str:
-        """Return the API URL root, configurable via tap settings."""
-        # TODO: hardcode a value here, or retrieve it from self.config
-        return "https://api.mysample.com"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.api = self.setup_api_connection()
+        self.date_fields = {'_api_report_date': self.date_format}
+        self.float_fields = {name for name, prop in self.schema["properties"].items() if 'number' in prop['type']}
+        self.int_fields = {name for name, prop in self.schema["properties"].items() if 'integer' in prop['type']}
 
-    records_jsonpath = "$[*]"  # Or override `parse_response`.
+    def setup_api_connection(self):
+        """Set up the API connection using provided configuration."""
+        return Api(self.config['key_id'], self.config['key_file'], self.config['issuer_id'], submit_stats=False)
 
-    # Set this value or override `get_new_paginator`.
-    next_page_token_jsonpath = "$.next_page"  # noqa: S105
+    def download_data(self, start_date, api):
+        """Set up the endpoint for the API call. Override in subclass as needed."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
-    @property
-    def authenticator(self) -> APIKeyAuthenticator:
-        """Return a new authenticator object.
+    def post_process(self, row, context=None):
+        # Convert float fields
+        if self.float_fields:
+            self.convert_fields(row, self.float_fields, float)
 
-        Returns:
-            An authenticator instance.
-        """
-        return APIKeyAuthenticator.create_for_stream(
-            self,
-            key="x-api-key",
-            value=self.config.get("auth_token", ""),
-            location="header",
-        )
+        # Convert integer fields
+        if self.int_fields:
+            self.convert_fields(row, self.int_fields, int)
 
-    @property
-    def http_headers(self) -> dict:
-        """Return the http headers needed.
+        # Convert date fields
+        if self.date_fields:
+            for field, format in self.date_fields.items():
+                if field in row and row[field]:
+                    row[field] = self.convert_date(row[field], format)
 
-        Returns:
-            A dictionary of HTTP headers.
-        """
-        headers = {}
-        if "user_agent" in self.config:
-            headers["User-Agent"] = self.config.get("user_agent")
-        # If not using an authenticator, you may also provide inline auth headers:
-        # headers["Private-Token"] = self.config.get("auth_token")  # noqa: ERA001
-        return headers
-
-    def get_new_paginator(self) -> BaseAPIPaginator:
-        """Create a new pagination helper instance.
-
-        If the source API can make use of the `next_page_token_jsonpath`
-        attribute, or it contains a `X-Next-Page` header in the response
-        then you can remove this method.
-
-        If you need custom pagination that uses page numbers, "next" links, or
-        other approaches, please read the guide: https://sdk.meltano.com/en/v0.25.0/guides/pagination-classes.html.
-
-        Returns:
-            A pagination helper instance.
-        """
-        return super().get_new_paginator()
-
-    def get_url_params(
-        self,
-        context: dict | None,  # noqa: ARG002
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization.
-
-        Args:
-            context: The stream context.
-            next_page_token: The next page index or value.
-
-        Returns:
-            A dictionary of URL query parameters.
-        """
-        params: dict = {}
-        if next_page_token:
-            params["page"] = next_page_token
-        if self.replication_key:
-            params["sort"] = "asc"
-            params["order_by"] = self.replication_key
-        return params
-
-    def prepare_request_payload(
-        self,
-        context: dict | None,  # noqa: ARG002
-        next_page_token: Any | None,  # noqa: ARG002, ANN401
-    ) -> dict | None:
-        """Prepare the data payload for the REST API request.
-
-        By default, no payload will be sent (return None).
-
-        Args:
-            context: The stream context.
-            next_page_token: The next page index or value.
-
-        Returns:
-            A dictionary with the JSON body for a POST requests.
-        """
-        # TODO: Delete this method if no payload is required. (Most REST APIs.)
-        return None
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and return an iterator of result records.
-
-        Args:
-            response: The HTTP ``requests.Response`` object.
-
-        Yields:
-            Each record from the source.
-        """
-        # TODO: Parse response body and return a set of records.
-        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
-
-    def post_process(
-        self,
-        row: dict,
-        context: dict | None = None,  # noqa: ARG002
-    ) -> dict | None:
-        """As needed, append or transform raw data to match expected structure.
-
-        Args:
-            row: An individual record from the stream.
-            context: The stream context.
-
-        Returns:
-            The updated record dictionary, or ``None`` to skip the record.
-        """
-        # TODO: Delete this method if not needed.
         return row
+
+    def get_start_date(self, context: dict = None):
+        starting_timestamp = self.get_starting_timestamp(context)
+        return starting_timestamp + self.date_increment if starting_timestamp else self.config['start_date']
+
+    def get_records(self, context: dict = None):
+        """Return a generator of record-type dictionary objects."""
+        line_id = 0
+        start_date = self.get_start_date(context)
+
+        while report := self._get_report(start_date):
+            start_date_fmt = start_date.strftime(self.date_format)
+            logger.info(f'Extracting {self.tap_stream_id} starting from {start_date_fmt}')
+            data_io = StringIO(report)
+            first_line = data_io.readline().strip()
+            fieldnames = [col.strip().replace(' ', '_').replace('-', '_').lower() for col in first_line.split('\t')]
+
+            reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
+
+            for record in reader:
+                first_value = next(iter(record.values()))
+                if first_value and any(keyword in first_value for keyword in self.skip_line_first_values):
+                    logger.info(f"Skipping line report {start_date_fmt}: {record.values()}")
+                    continue
+
+                line_id += 1
+                record['_line_id'] = line_id
+                record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+                record['_api_report_date'] = start_date_fmt
+                record['vendor_number'] = self.config['vendor']
+
+                processed_record = self.post_process(record, context)
+                if processed_record is not None:
+                    yield processed_record
+
+            start_date += self.date_increment
+
+    @retry(
+        retry=retry_if_not_exception_type(APIError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=3, min=300, max=1800),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+
+    )
+    def _get_report(self, start_date):
+        try:
+            return self.download_data(start_date.strftime(self.date_format), self.api)
+        except APIError as e:
+            if str(e).startswith('There were no') and str(e).endswith('for the date specified.') or str(e).startswith('Report is not available yet'):
+                logger.info(str(e))
+                return None
+            raise
+
+    @staticmethod
+    def convert_date(date_str, date_format='%Y-%m-%d'):
+        """Converts date string to ISO format based on the given date format, defaulting to '%Y-%m-%d'.
+           Returns None if the date string is invalid or empty.
+        """
+        if not date_str or date_str.strip() == '':
+            logger.info(f'date_str: {date_str}')
+            logger.warning(f"Empty or invalid date string provided; cannot convert using format {date_format}")
+            return None
+
+        try:
+            return datetime.strptime(date_str, date_format).isoformat()
+        except ValueError as e:
+            logger.error(f"Date conversion error for date: '{date_str}' with format '{date_format}' | Error: {str(e)}")
+            raise
+
+    def convert_fields(self, record, fields, target_type):
+        """Converts specified fields in a record to a target type."""
+        for field in fields:
+            if field in record and record[field] is not None:
+                if isinstance(record[field], str) and record[field].strip() == "":
+                    record[field] = None
+                if record[field] is not None:
+                    try:
+                        record[field] = target_type(record[field])
+                    except ValueError:
+                        logger.warning(f"Invalid format for {field}: {record[field]}")
+                        raise
+

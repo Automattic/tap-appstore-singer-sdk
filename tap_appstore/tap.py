@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
-
-# TODO: Import your custom stream types here:
 from tap_appstore import streams
 
 
@@ -14,31 +12,36 @@ class TapAppStore(Tap):
 
     name = "tap-appstore"
 
-    # TODO: Update this section with the actual config values you expect:
     config_jsonschema = th.PropertiesList(
         th.Property(
-            "auth_token",
+            "key_id",
             th.StringType,
             required=True,
-            secret=True,  # Flag config as protected.
-            description="The token to authenticate against the API service",
+            description="The AppStore key ID",
         ),
         th.Property(
-            "project_ids",
-            th.ArrayType(th.StringType),
+            "key_file",
+            th.StringType,
             required=True,
-            description="Project IDs to replicate",
+            description="Path to the AppStore key file",
+        ),
+        th.Property(
+            "issuer_id",
+            th.StringType,
+            required=True,
+            description="The ID of the issuer",
+        ),
+        th.Property(
+            "vendor",
+            th.StringType,
+            required=True,
+            description="The ID of the vendor",
         ),
         th.Property(
             "start_date",
             th.DateTimeType,
+            required=True,
             description="The earliest record date to sync",
-        ),
-        th.Property(
-            "api_url",
-            th.StringType,
-            default="https://api.mysample.com",
-            description="The url for the API service",
         ),
     ).to_dict()
 
@@ -49,8 +52,11 @@ class TapAppStore(Tap):
             A list of discovered streams.
         """
         return [
-            streams.GroupsStream(self),
-            streams.UsersStream(self),
+            streams.SalesReportStream(self),
+            streams.SubscriberReportStream(self),
+            streams.SubscriptionReportStream(self),
+            streams.SubscriptionEventReportStream(self),
+            streams.FinancialReportStream(self)
         ]
 
 
