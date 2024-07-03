@@ -57,11 +57,14 @@ class AppStoreStream(Stream):
 
         return row
 
+    def get_start_date(self, context: dict = None):
+        starting_timestamp = self.get_starting_timestamp(context)
+        return starting_timestamp + self.date_increment if starting_timestamp else self.config['start_date']
+
     def get_records(self, context: dict = None):
         """Return a generator of record-type dictionary objects."""
         line_id = 0
-        starting_timestamp = self.get_starting_timestamp(context)
-        start_date = starting_timestamp + self.date_increment if starting_timestamp else self.config['start_date']
+        start_date = self.get_start_date(context)
 
         while report := self._get_report(start_date):
             start_date_fmt = start_date.strftime(self.date_format)

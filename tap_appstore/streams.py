@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from singer_sdk import typing as th
+from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 import logging
@@ -160,6 +161,12 @@ class SubscriptionReportStream(client.AppStoreStream):
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
+    def get_start_date(self, context: dict = None):
+        """Data in subscription_report appears to be mutable, so
+        we ignore the self.config start_date and sync all data from
+        the last 365 days."""
+        return datetime.utcnow().date() - timedelta(days=365)
+
 
 class SubscriptionEventReportStream(client.AppStoreStream):
     name = "subscription_event_report"
@@ -209,6 +216,12 @@ class SubscriptionEventReportStream(client.AppStoreStream):
             'vendorNumber': self.config['vendor']
         }
         return api.download_sales_and_trends_reports(filters=filters)
+
+    def get_start_date(self, context: dict = None):
+        """Data in subscription_event_report appears to be mutable, so
+        we ignore the self.config start_date and sync all data from
+        the last 365 days."""
+        return datetime.utcnow().date() - timedelta(days=365)
 
 
 class FinancialReportStream(client.AppStoreStream):
