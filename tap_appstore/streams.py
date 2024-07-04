@@ -47,17 +47,17 @@ class SalesReportStream(client.AppStoreStream):
         th.Property("proceeds_reason", th.StringType),
         th.Property("preserved_pricing", th.StringType),
         th.Property("client", th.StringType),
-        th.Property("order_type", th.StringType)
+        th.Property("order_type", th.StringType),
     ).to_dict()
 
     def download_data(self, start_date, api):
         filters = {
-            'frequency': 'DAILY',
-            'reportType': 'SALES',
-            'reportSubType': 'SUMMARY',
-            'reportDate': start_date,
-            'version': '1_0',
-            'vendorNumber': self.config['vendor']
+            "frequency": "DAILY",
+            "reportType": "SALES",
+            "reportSubType": "SUMMARY",
+            "reportDate": start_date,
+            "version": "1_0",
+            "vendorNumber": self.config["vendor"],
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -94,17 +94,17 @@ class SubscriberReportStream(client.AppStoreStream):
         th.Property("subscriber_id_reset", th.StringType),
         th.Property("refund", th.StringType),
         th.Property("purchase_date", th.StringType),
-        th.Property("units", th.IntegerType)
+        th.Property("units", th.IntegerType),
     ).to_dict()
 
     def download_data(self, start_date, api):
         filters = {
-            'frequency': 'DAILY',
-            'reportType': 'SUBSCRIBER',
-            'reportSubType': 'DETAILED',
-            'reportDate': start_date,
-            'version': '1_3',
-            'vendorNumber': self.config['vendor']
+            "frequency": "DAILY",
+            "reportType": "SUBSCRIBER",
+            "reportSubType": "DETAILED",
+            "reportDate": start_date,
+            "version": "1_3",
+            "vendorNumber": self.config["vendor"],
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -138,9 +138,15 @@ class SubscriptionReportStream(client.AppStoreStream):
         th.Property("country", th.StringType),
         th.Property("subscribers", th.StringType),
         th.Property("active_standard_price_subscriptions", th.IntegerType),
-        th.Property("active_free_trial_introductory_offer_subscriptions", th.IntegerType),
-        th.Property("active_pay_up_front_introductory_offer_subscriptions", th.IntegerType),
-        th.Property("active_pay_as_you_go_introductory_offer_subscriptions", th.IntegerType),
+        th.Property(
+            "active_free_trial_introductory_offer_subscriptions", th.IntegerType
+        ),
+        th.Property(
+            "active_pay_up_front_introductory_offer_subscriptions", th.IntegerType
+        ),
+        th.Property(
+            "active_pay_as_you_go_introductory_offer_subscriptions", th.IntegerType
+        ),
         th.Property("free_trial_offer_code_subscriptions", th.IntegerType),
         th.Property("free_trial_promotional_offer_subscriptions", th.IntegerType),
         th.Property("pay_as_you_go_offer_code_subscriptions", th.IntegerType),
@@ -149,17 +155,17 @@ class SubscriptionReportStream(client.AppStoreStream):
         th.Property("pay_as_you_go_promotional_offer_subscriptions", th.IntegerType),
         th.Property("marketing_opt_ins", th.IntegerType),
         th.Property("billing_retry", th.IntegerType),
-        th.Property("grace_period", th.IntegerType)
+        th.Property("grace_period", th.IntegerType),
     ).to_dict()
 
     def download_data(self, start_date, api):
         filters = {
-            'frequency': 'DAILY',
-            'reportType': 'SUBSCRIPTION',
-            'reportSubType': 'SUMMARY',
-            'reportDate': start_date,
-            'version': '1_3',
-            'vendorNumber': self.config['vendor']
+            "frequency": "DAILY",
+            "reportType": "SUBSCRIPTION",
+            "reportSubType": "SUMMARY",
+            "reportDate": start_date,
+            "version": "1_3",
+            "vendorNumber": self.config["vendor"],
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -206,17 +212,17 @@ class SubscriptionEventReportStream(client.AppStoreStream):
         th.Property("days_before_canceling", th.StringType),
         th.Property("cancellation_reason", th.StringType),
         th.Property("days_canceled", th.IntegerType),
-        th.Property("quantity", th.IntegerType)
+        th.Property("quantity", th.IntegerType),
     ).to_dict()
 
     def download_data(self, start_date, api):
         filters = {
-            'frequency': 'DAILY',
-            'reportType': 'SUBSCRIPTION_EVENT',
-            'reportSubType': 'SUMMARY',
-            'reportDate': start_date,
-            'version': '1_3',
-            'vendorNumber': self.config['vendor']
+            "frequency": "DAILY",
+            "reportType": "SUBSCRIPTION_EVENT",
+            "reportSubType": "SUMMARY",
+            "reportDate": start_date,
+            "version": "1_3",
+            "vendorNumber": self.config["vendor"],
         }
         return api.download_sales_and_trends_reports(filters=filters)
 
@@ -229,7 +235,7 @@ class SubscriptionEventReportStream(client.AppStoreStream):
 
 class FinancialReportStream(client.AppStoreStream):
     name = "financial_report"
-    date_format = '%Y-%m'
+    date_format = "%Y-%m"
     date_increment = relativedelta(months=1)
     skip_line_first_values = ["Total_Rows", "Total_Amount", "Total_Units"]
     schema = th.PropertiesList(
@@ -252,28 +258,31 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("pre_order_flag", th.StringType),
         th.Property("promo_code", th.StringType),
         th.Property("customer_price", th.NumberType),
-        th.Property("customer_currency", th.StringType)
+        th.Property("customer_currency", th.StringType),
     ).to_dict()
-    date_report_pattern = re.compile(r'^\d{2}/\d{2}/\d{4}$')
+    date_report_pattern = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 
     def download_data(self, start_date, api):
-        filters = {'vendorNumber': self.config['vendor'],
-                   'regionCode': 'ZZ',
-                   'reportType': 'FINANCIAL',
-                   'reportDate': start_date,
-                   }
+        filters = {
+            "vendorNumber": self.config["vendor"],
+            "regionCode": "ZZ",
+            "reportType": "FINANCIAL",
+            "reportDate": start_date,
+        }
         return api.download_finance_reports(filters=filters)
 
     def post_process(
-            self,
-            row: dict,
-            context: dict | None = None,
+        self,
+        row: dict,
+        context: dict | None = None,
     ) -> dict | None:
         row = super().post_process(row, context)
 
-        if not row.get('start_date') or not self.date_report_pattern.match(row['start_date']):
-            logger.debug(f"Skipping row with non valid start date (which happen with non valid data row in report): {row}")
+        if not row.get("start_date") or not self.date_report_pattern.match(
+            row["start_date"]
+        ):
+            logger.debug(
+                f"Skipping row with non valid start date (which happen with non valid data row in report): {row}"
+            )
             return None
         return row
-
-

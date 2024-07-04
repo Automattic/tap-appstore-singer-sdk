@@ -9,7 +9,7 @@ from tap_appstore.tap import TapAppStore
 
 
 current_path = Path(__file__).resolve().parent
-config_path = current_path / '..' / 'config.json'
+config_path = current_path / ".." / "config.json"
 # create a config object to run the core tests
 SAMPLE_CONFIG = json.loads(config_path.read_text())
 

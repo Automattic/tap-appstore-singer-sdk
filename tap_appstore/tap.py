@@ -56,7 +56,7 @@ class TapAppStore(Tap):
             streams.SubscriberReportStream(self),
             streams.SubscriptionReportStream(self),
             streams.SubscriptionEventReportStream(self),
-            streams.FinancialReportStream(self)
+            streams.FinancialReportStream(self),
         ]
 
 
