@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import logging
 from tap_appstore import client
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +254,7 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType)
     ).to_dict()
+    date_report_pattern = re.compile(r'^\d{2}/\d{2}/\d{4}$')
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
@@ -268,8 +270,9 @@ class FinancialReportStream(client.AppStoreStream):
             context: dict | None = None,
     ) -> dict | None:
         row = super().post_process(row, context)
-        if not row.get('vendor_identifier'):
-            logger.debug(f"Skipping row with empty vendor identifier: {row}")
+
+        if not row.get('start_date') or not self.date_report_pattern.match(row['start_date']):
+            logger.debug(f"Skipping row with non valid start date (which happen with non valid data row in report): {row}")
             return None
         return row
 
