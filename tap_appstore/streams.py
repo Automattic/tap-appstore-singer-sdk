@@ -255,7 +255,6 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType)
     ).to_dict()
-    date_report_pattern = re.compile(r'^\d{2}/\d{2}/\d{4}$')
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
@@ -272,7 +271,8 @@ class FinancialReportStream(client.AppStoreStream):
     ) -> dict | None:
         row = super().post_process(row, context)
 
-        if not row.get('start_date') or not self.date_report_pattern.match(row['start_date']):
+        if (not row.get('start_date') or
+                not re.compile(r'^\d{2}/\d{2}/\d{4}$').match(row['start_date'])):
             logger.info(f"Skipping row with non valid start date "
                         f"(which happen with summary rows in report): {row}")
             return None
