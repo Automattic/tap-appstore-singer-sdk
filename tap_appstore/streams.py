@@ -262,3 +262,15 @@ class FinancialReportStream(client.AppStoreStream):
                    }
         return api.download_finance_reports(filters=filters)
 
+    def post_process(
+            self,
+            row: dict,
+            context: dict | None = None,
+    ) -> dict | None:
+        row = super().post_process(row, context)
+        if not row.get('vendor_identifier'):
+            logger.debug(f"Skipping row with empty vendor identifier: {row}")
+            return None
+        return row
+
+
