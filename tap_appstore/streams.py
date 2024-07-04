@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from singer_sdk import typing as th
 from datetime import datetime, timedelta
 
@@ -253,6 +255,7 @@ class FinancialReportStream(client.AppStoreStream):
         th.Property("customer_price", th.NumberType),
         th.Property("customer_currency", th.StringType)
     ).to_dict()
+    report_date_format = re.compile(r'^\d{2}/\d{2}/\d{4}$')
 
     def download_data(self, start_date, api):
         filters = {'vendorNumber': self.config['vendor'],
@@ -262,3 +265,16 @@ class FinancialReportStream(client.AppStoreStream):
                    }
         return api.download_finance_reports(filters=filters)
 
+    def post_process(
+        self,
+        row: dict,
+        context: dict | None = None,
+    ) -> dict | None:
+        row = super().post_process(row, context)
+
+        if (not row.get('start_date') or
+                not self.report_date_format.match(row['start_date'])):
+            logger.info(f"Skipping row with non valid start date "
+                        f"(which happen with summary rows in report): {row}")
+            return None
+        return row

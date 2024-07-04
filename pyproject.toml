@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tap-appstore"
-version = "0.1.1"
+version = "0.1.2"
 description = "`tap-appstore` is a Singer tap for AppStore, built with the Meltano Singer SDK."
 readme = "README.md"
 authors = ["Mahangu Weerasinghe <mahangu@automattic.com>"]
