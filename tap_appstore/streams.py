@@ -273,5 +273,7 @@ class FinancialReportStream(client.AppStoreStream):
         row = super().post_process(row, context)
 
         if not row.get('start_date') or not self.date_report_pattern.match(row['start_date']):
-            logger.debug(f"Skipping row with non valid start date (which happen with non valid data row in report): {row}")
+            logger.info(f"Skipping row with non valid start date "
+                        f"(which happen with summary rows in report): {row}")
+            return None
         return row
