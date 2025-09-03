@@ -95,6 +95,16 @@ You can also test the `tap-appstore` CLI interface directly using `poetry run`:
 poetry run tap-appstore --help
 ```
 
+### `constraints.txt` generation:
+
+```bash
+$ poetry self add poetry-plugin-export
+$ poetry export --output constraints.txt --without-hashes
+```
+
+Change to tag instead of commit here:
+`appstoreconnect @ git+https://github.com/Automattic/appstoreconnectapi.git@10.0.2 ; python_version >= "3.9"`
+
 ### Testing with [Meltano](https://www.meltano.com)
 
 _**Note:** This tap will work in any Singer environment and does not require Meltano.
