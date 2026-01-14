@@ -111,10 +111,7 @@ class AppStoreStream(Stream):
             if str(e).startswith('There were no') and str(e).endswith('for the date specified.') or str(e).startswith('Report is not available yet'):
                 logger.info(str(e))
                 return None
-            if ('Provide a properly configured and signed bearer token' in str(e) or
-                'This request requires an in-effect agreement' in str(e)):
-                raise RetriableAPIException(str(e))
-            raise
+            raise RetriableAPIException(str(e))
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):
