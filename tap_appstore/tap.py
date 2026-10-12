@@ -43,6 +43,11 @@ class TapAppStore(Tap):
             required=True,
             description="The earliest record date to sync",
         ),
+        th.Property(
+            "app_ids",
+            th.ArrayType(th.CustomType({"type": ["string", "integer"]})),
+            description="Apple IDs of the apps to extract analytics reports for",
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.AppStoreStream]:
@@ -56,7 +61,9 @@ class TapAppStore(Tap):
             streams.SubscriberReportStream(self),
             streams.SubscriptionReportStream(self),
             streams.SubscriptionEventReportStream(self),
-            streams.FinancialReportStream(self)
+            streams.FinancialReportStream(self),
+            streams.DiscoveryEngagementReportStream(self),
+            streams.DownloadsReportStream(self)
         ]
 
 

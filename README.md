@@ -45,6 +45,27 @@ tap is available by running:
 tap-appstore --about
 ```
 
+### Analytics reports
+
+`discovery_engagement_report` and `downloads_report` read the [Analytics Reports API](https://developer.apple.com/documentation/appstoreconnectapi/downloading-analytics-reports):
+App Store impressions, product page views and downloads by source, territory and device.
+They need the `app_ids` setting (Apple IDs, such as `["1044867788"]`) and extract nothing without it.
+
+- **Apple must be asked to generate them first.** A key with the Admin role creates an `ONGOING`
+  analytics report request per app (`POST /v1/analyticsReportRequests`), and optionally a
+  `ONE_TIME_SNAPSHOT` for history from January 1, 2024. The tap only reads, and fails if an app
+  in `app_ids` has no active `ONGOING` request. Apple stops an `ONGOING` request that nobody
+  reads for a long time, and deletes report instances after 35 days.
+- **Each request has its own bookmark**, `_api_report_date` (the instance's processing date). It
+  moves only once the request has been read in full, so a failed run reads the request again, and
+  can reread others it had finished.
+- **Deduplicate before counting.** `_instance_id`, `_segment_id` and `_line_id` identify a row,
+  which a rerun can load twice. A later instance can restate earlier dates, so for each
+  `app_apple_identifier` and `date`, keep only the rows of the instance with the latest
+  `_api_report_date`, preferring `access_type` `ONGOING` when a snapshot instance shares it.
+- Both read Apple's Standard reports. The Detailed versions add fields but drop rows with fewer
+  than five users or devices and add noise.
+
 ### Configure using environment variables
 
 This Singer tap will automatically import any environment variables within the working directory's
