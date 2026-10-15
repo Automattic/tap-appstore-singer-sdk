@@ -277,3 +277,62 @@ class FinancialReportStream(client.AppStoreStream):
                         f"(which happen with summary rows in report): {row}")
             return None
         return row
+
+
+class DiscoveryEngagementReportStream(client.AnalyticsReportStream):
+    """App Store impressions, product page views and taps by source, territory and device."""
+    name = "discovery_engagement_report"
+    report_names = ("app store discovery and engagement standard",)
+    schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.DateTimeType),
+        th.Property("_instance_id", th.StringType),
+        th.Property("_segment_id", th.StringType),
+        th.Property("app_id", th.StringType),
+        th.Property("request_id", th.StringType),
+        th.Property("access_type", th.StringType),
+        th.Property("vendor_number", th.StringType),
+        th.Property("date", th.StringType),
+        th.Property("app_name", th.StringType),
+        th.Property("app_apple_identifier", th.IntegerType),
+        th.Property("event", th.StringType),
+        th.Property("page_type", th.StringType),
+        th.Property("source_type", th.StringType),
+        th.Property("engagement_type", th.StringType),
+        th.Property("device", th.StringType),
+        th.Property("platform_version", th.StringType),
+        th.Property("territory", th.StringType),
+        th.Property("counts", th.IntegerType),
+        th.Property("unique_counts", th.IntegerType)
+    ).to_dict()
+
+
+class DownloadsReportStream(client.AnalyticsReportStream):
+    """App Store downloads by download type, source, territory and device."""
+    name = "downloads_report"
+    # Apple's docs call this report both "App Store Downloads" and "App Downloads".
+    report_names = ("app store downloads standard", "app downloads standard")
+    schema = th.PropertiesList(
+        th.Property("_line_id", th.IntegerType),
+        th.Property("_time_extracted", th.StringType),
+        th.Property("_api_report_date", th.DateTimeType),
+        th.Property("_instance_id", th.StringType),
+        th.Property("_segment_id", th.StringType),
+        th.Property("app_id", th.StringType),
+        th.Property("request_id", th.StringType),
+        th.Property("access_type", th.StringType),
+        th.Property("vendor_number", th.StringType),
+        th.Property("date", th.StringType),
+        th.Property("app_name", th.StringType),
+        th.Property("app_apple_identifier", th.IntegerType),
+        th.Property("download_type", th.StringType),
+        th.Property("app_version", th.StringType),
+        th.Property("device", th.StringType),
+        th.Property("platform_version", th.StringType),
+        th.Property("source_type", th.StringType),
+        th.Property("page_type", th.StringType),
+        th.Property("pre_order", th.StringType),
+        th.Property("territory", th.StringType),
+        th.Property("counts", th.IntegerType)
+    ).to_dict()

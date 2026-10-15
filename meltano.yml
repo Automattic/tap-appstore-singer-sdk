@@ -29,12 +29,16 @@ plugins:
         kind: password
         sensitive: true
       - name: start_date
+      - name: app_ids
+        kind: array
     select:
       - subscription_event_report.*
       - subscriber_report.*
       - subscription_report.*
       - sales_report.*
       - financial_report.*
+      - discovery_engagement_report.*
+      - downloads_report.*
   loaders:
   - name: target-jsonl
     variant: andyh1203
