@@ -286,18 +286,29 @@ class AnalyticsReportStream(AppStoreStream):
 
     def _segments(self, instance_id):
         """(segment id, text) for each segment of one instance, downloaded one at a time."""
-        for segment in self._list(f'analyticsReportInstances/{instance_id}/segments'):
-            yield segment['id'], self._download_segment(instance_id, segment['id'])
+        segments = self._list(f'analyticsReportInstances/{instance_id}/segments')
+        links = {segment['id']: segment['attributes']['url'] for segment in segments}
+        for segment in segments:
+            yield segment['id'], self._download_segment(instance_id, segment['id'], links)
 
     @api_retry
-    def _download_segment(self, instance_id, segment_id):
-        # Segment URLs expire five minutes after they're listed, and a history instance can have dozens
-        # of segments that take longer than that to read, so every download lists them again.
-        segments = {s['id']: s for s in self._fetch_all(f'analyticsReportInstances/{instance_id}/segments')}
-        if segment_id not in segments:
-            raise APIError(f'Segment {segment_id} of instance {instance_id} is no longer listed')
+    def _download_segment(self, instance_id, segment_id, links):
+        try:
+            return self._get_segment(links[segment_id])
+        except requests.HTTPError:
+            # A link expires five minutes after it's listed, and a large instance can take longer than that
+            # to read, so a refused download lists the segments again and retries right away.
+            segments = self._fetch_all(f'analyticsReportInstances/{instance_id}/segments')
+            fresh = {segment['id']: segment['attributes']['url'] for segment in segments}
+            if segment_id not in fresh:
+                raise APIError(f'Segment {segment_id} of instance {instance_id} is no longer listed')
+            links.update(fresh)
+            return self._get_segment(links[segment_id])
+
+    @staticmethod
+    def _get_segment(url):
         # A presigned URL: Apple's bearer token must not be sent with it.
-        response = requests.get(segments[segment_id]['attributes']['url'], timeout=300)
+        response = requests.get(url, timeout=300)
         response.raise_for_status()
         return Api._unwrap_report_archive(response.content).decode('utf-8')
 

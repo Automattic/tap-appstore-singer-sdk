@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
 
 from appstoreconnect.api import APIError, HttpMethod
+from requests import HTTPError
 from tap_appstore.client import AppStoreStream
 from tap_appstore.tap import TapAppStore
 
@@ -70,7 +71,10 @@ class FakeAppStoreConnect:
         key = parts.path + (f"?{parts.query}" if parts.query else "")
         self.calls.append(key)
         if method != HttpMethod.POST:
-            return self.responses[key]
+            response = self.responses[key]
+            if isinstance(response, list):  # successive answers, the last one repeating
+                return response.pop(0) if len(response) > 1 else response[0]
+            return response
         data = post_data["data"]
         self.created.append((data["relationships"]["app"]["data"]["id"], data["attributes"]["accessType"]))
         if self.create_error:
@@ -80,6 +84,8 @@ class FakeAppStoreConnect:
         return {"data": report_request(request_id, data["attributes"]["accessType"])}
 
     def download(self, url, timeout=None):
+        if url not in self.files:  # how S3 answers an expired link
+            raise HTTPError("403 Client Error: Forbidden")
         response = MagicMock()
         response.content = gzip.compress(self.files[url].encode("utf-8"))
         return response
@@ -166,6 +172,8 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         )
         self.assertEqual(self.bookmarks(), {"ONGOING": "2026-10-03T00:00:00", "ONE_TIME_SNAPSHOT": "2026-10-02T00:00:00"})
         self.assertFalse(any("rep-detailed" in call for call in self.fake.calls))  # Standard only
+        listings = sorted(call for call in self.fake.calls if call.endswith("/segments"))
+        self.assertEqual(listings, [f"/v1/analyticsReportInstances/i-0{n}/segments" for n in (1, 2, 3)])  # once each
         self.assertEqual(self.fake.created, [])  # the app already has both requests
 
         first = records[0]
@@ -194,7 +202,7 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         i03 = self.fake.files.pop("https://s3.example/i-03.csv.gz")
         stream = self.make_stream()
         stream.STATE_MSG_FREQUENCY = 1
-        with self.assertRaises(KeyError):
+        with self.assertRaises(HTTPError):
             self.sync(stream)
 
         self.fake.files["https://s3.example/i-03.csv.gz"] = i03
@@ -298,6 +306,16 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         with patch("tap_appstore.client.logger.warning") as warning:
             self.sync(self.make_stream())
         warning.assert_not_called()
+
+    def test_gets_a_fresh_link_right_away_when_one_has_expired(self):
+        # The link from the first listing has expired by the time the tap downloads the file.
+        expired = {"id": "seg-i-01", "attributes": {"url": "https://s3.example/expired.csv.gz"}}
+        self.fake.responses["/v1/analyticsReportInstances/i-01/segments"] = [page([expired]), page([segment("i-01")])]
+        with patch("tenacity.nap.time.sleep") as sleep:
+            records = self.sync(self.make_stream())
+        self.assertEqual(len([r for r in records if r["_instance_id"] == "i-01"]), 2)
+        self.assertEqual(self.fake.calls.count("/v1/analyticsReportInstances/i-01/segments"), 2)
+        sleep.assert_not_called()  # no five-minute retry wait
 
     def test_retries_apple_errors_but_not_bugs(self):
         stream = self.make_stream()
