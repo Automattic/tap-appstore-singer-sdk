@@ -14,15 +14,25 @@ import zipfile
 import zlib
 from appstoreconnect import Api
 from appstoreconnect.api import APIError, BASE_API
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_exception_type
 
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
 logger = logging.getLogger(__name__)
 
+# Apple's API errors come and go, and so do network errors and damaged downloads.
+# Anything else is a bug that retrying won't fix.
+TRANSIENT_ERRORS = (APIError, OSError, EOFError, zlib.error, zipfile.BadZipFile)
 
-class RetriableAPIException(Exception):
-    pass
+# Every stream calls the same App Store Connect API, so they all retry the same way.
+api_retry = retry(
+    retry=retry_if_exception_type(TRANSIENT_ERRORS),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=3, min=300, max=1800),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+
 
 class AppStoreStream(Stream):
     """AppStore stream class."""
@@ -100,13 +110,7 @@ class AppStoreStream(Stream):
 
             start_date += self.date_increment
 
-    @retry(
-        retry=retry_if_not_exception_type(APIError),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=300, max=1800),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-
-    )
+    @api_retry
     def _get_report(self, start_date):
         try:
             return self.download_data(start_date.strftime(self.date_format), self.api)
@@ -114,7 +118,7 @@ class AppStoreStream(Stream):
             if str(e).startswith('There were no') and str(e).endswith('for the date specified.') or str(e).startswith('Report is not available yet'):
                 logger.info(str(e))
                 return None
-            raise RetriableAPIException(str(e))
+            raise
 
     @staticmethod
     def column_name(header):
@@ -149,20 +153,6 @@ class AppStoreStream(Stream):
                     except ValueError:
                         logger.warning(f"Invalid format for {field}: {record[field]}")
                         raise
-
-
-# Apple's API errors come and go (see _get_report), and so do network errors and damaged
-# downloads. Anything else is a bug that retrying won't fix.
-TRANSIENT_ERRORS = (APIError, OSError, EOFError, zlib.error, zipfile.BadZipFile)
-
-# The same backoff as AppStoreStream._get_report, for the Analytics Reports API calls.
-analytics_retry = retry(
-    retry=retry_if_exception_type(TRANSIENT_ERRORS),
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=3, min=300, max=1800),
-    before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True,
-)
 
 
 class AnalyticsReportStream(AppStoreStream):
@@ -254,7 +244,7 @@ class AnalyticsReportStream(AppStoreStream):
         for segment in self._list(f'analyticsReportInstances/{instance_id}/segments'):
             yield segment['id'], self._download_segment(instance_id, segment['id'])
 
-    @analytics_retry
+    @api_retry
     def _download_segment(self, instance_id, segment_id):
         # Segment URLs expire five minutes after they're listed, so every attempt lists them again.
         segments = {s['id']: s for s in self._fetch_all(f'analyticsReportInstances/{instance_id}/segments')}
@@ -279,7 +269,7 @@ class AnalyticsReportStream(AppStoreStream):
             if row:
                 yield dict(zip(fieldnames, row))
 
-    @analytics_retry
+    @api_retry
     def _list(self, path):
         return self._fetch_all(path)
 
