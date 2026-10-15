@@ -159,11 +159,12 @@ class AnalyticsReportStream(AppStoreStream):
 
     Apple only generates these reports for an app that has an analytics report request:
     ONGOING for daily data, ONE_TIME_SNAPSHOT for history. The tap creates them when they're
-    missing, which takes a key with the Admin role. Each app has a partition, so a bookmark,
-    per kind of request: Apple dates a history delivery the day it makes it, and it can arrive
-    after newer daily data has been read. The README says how to deduplicate rows.
+    missing or when it finds data it never read, which takes a key with the Admin role. Each
+    app has a partition, so a bookmark, per kind of request: Apple dates a history instance the
+    day it makes it, and it can arrive after newer daily data has been read. The README says
+    how to deduplicate rows.
     """
-    report_name = ''  # lowercase
+    report_names = ()  # lowercase
     primary_keys = ['_instance_id', '_segment_id', '_line_id']
     is_sorted = False  # so a bookmark only moves once all its deliveries have been read
 
@@ -185,6 +186,10 @@ class AnalyticsReportStream(AppStoreStream):
         bookmark = str(bookmark)[:10] if bookmark else None
         if access_type == 'ONGOING':
             self._check_daily_deliveries(app_id, instances, bookmark)
+        elif not bookmark and not instances:
+            # No history read yet, and none left to read: either the app never had a history request or
+            # Apple deleted its instances before the tap ran.
+            self._create_history_request(app_id)
 
         if bookmark:
             new = [instance for instance in instances if instance['processing_date'] > bookmark]
@@ -207,40 +212,38 @@ class AnalyticsReportStream(AppStoreStream):
                     yield self.post_process(record, context)
 
     def _check_daily_deliveries(self, app_id, instances, bookmark):
-        """Warn when daily data stops arriving, and ask for history on a first run or after a gap."""
+        """Warn when daily data stops arriving, and ask for history when some of it was never read."""
         dates = [instance['processing_date'] for instance in instances]
         stale_before = (datetime.utcnow() - timedelta(days=4)).strftime(self.date_format)
         if not dates or max(dates) < stale_before:
             logger.warning(f"{self.tap_stream_id}: app {app_id} has no daily instance processed in the last 4 days "
                            f"(newest: {max(dates, default='none')}). Apple may have stopped generating it, or it is new.")
-        if not bookmark:
-            self._request_history(app_id)
+        if not bookmark or not dates:
             return
         day_after = (datetime.strptime(bookmark, self.date_format) + self.date_increment).strftime(self.date_format)
-        if dates and min(dates) > day_after:
-            logger.error(f"{self.tap_stream_id}: app {app_id} daily instances processed after {bookmark} and before "
-                         f"{min(dates)} were deleted before they were read (Apple keeps them 35 days). "
-                         f"Asking for history to recover them.")
-            self._request_history(app_id, missing_until=min(dates))
-
-    def _request_history(self, app_id, missing_until=None):
-        """Create a history request, unless the app has one that will do.
-
-        On an app's first run any history request will do. After a gap, it has to be still
-        generating, or generated on or after `missing_until`, to hold the days that were missed.
-        """
-        history_requests = self._report_requests(app_id, 'ONE_TIME_SNAPSHOT')
-        if history_requests and missing_until is None:
+        oldest = min(dates)
+        if oldest <= day_after:
             return
-        for request in history_requests:
-            dates = [instance['processing_date'] for instance in self._instances(request, 'ONE_TIME_SNAPSHOT')]
-            if not dates or max(dates) >= missing_until:
+        logger.error(f"{self.tap_stream_id}: app {app_id} daily instances processed after {bookmark} and before "
+                     f"{oldest} were deleted before they were read (Apple keeps them 35 days). "
+                     f"Asking for history to recover them.")
+        # History generated on or after the oldest daily instance left holds the days that were missed.
+        for request in self._report_requests(app_id, 'ONE_TIME_SNAPSHOT'):
+            if any(instance['processing_date'] >= oldest for instance in self._instances(request, 'ONE_TIME_SNAPSHOT')):
                 return
+        self._create_history_request(app_id)
+
+    def _create_history_request(self, app_id):
+        """Ask Apple for the app's history.
+
+        Apple allows one history request a month, so it refuses while an earlier one is still
+        being generated, which is fine: that one will do.
+        """
         try:
             self._create_request(app_id, 'ONE_TIME_SNAPSHOT')
         except APIError as e:
-            # Apple allows one history request a month.
-            logger.error(f'{self.tap_stream_id}: could not ask Apple for the history of app {app_id}: {e}')
+            logger.warning(f'{self.tap_stream_id}: Apple refused a history request for app {app_id}; it allows one '
+                           f'a month, and an earlier one may still be generating: {e}')
 
     def _report_requests(self, app_id, access_type):
         """The app's analytics report requests of one kind, stopped ones included."""
@@ -267,10 +270,10 @@ class AnalyticsReportStream(AppStoreStream):
     def _instances(self, request, access_type):
         """This report's daily instances in one analytics report request."""
         reports = self._list(f"analyticsReportRequests/{request['id']}/reports?limit=200")
-        report = next((r for r in reports if r['attributes']['name'].strip().lower() == self.report_name), None)
+        report = next((r for r in reports if r['attributes']['name'].strip().lower() in self.report_names), None)
         if report is None:
             message = (f"{self.tap_stream_id}: {access_type} request {request['id']} has no report named "
-                       f"{self.report_name!r}. It has: {sorted(r['attributes']['name'] for r in reports)}")
+                       f"{' or '.join(self.report_names)}. It has: {sorted(r['attributes']['name'] for r in reports)}")
             # A request Apple hasn't generated yet may list no reports; one that lists others had this one renamed.
             if reports and access_type == 'ONGOING':
                 raise RuntimeError(message)

@@ -54,11 +54,14 @@ They need the `app_ids` setting (Apple IDs, such as `["1044867788"]`) and fail w
 - **The tap asks Apple for the reports**, which takes a key with the Admin role. Apple only
   generates them for an app with an analytics report request. When an app has no active
   `ONGOING` request (daily data), the tap creates one; Apple also stops one that nobody reads for
-  a long time. On an app's first run, the tap creates a `ONE_TIME_SNAPSHOT` request (history from
-  January 1, 2024) unless the app has one. Apple's first reports take a day or two.
+  a long time. Until it has read an app's history, the tap creates a `ONE_TIME_SNAPSHOT` request
+  (history from January 1, 2024) whenever there is none to read: the app has no history request,
+  or Apple deleted its instances first. Apple's first reports take a day or two.
 - **Gaps fill themselves.** Apple deletes report instances after 35 days. If some were deleted
   before the tap read them, it logs an error and creates a new `ONE_TIME_SNAPSHOT` request, unless
-  one already holds those days. Apple allows one a month.
+  one already holds those days.
+- **Apple allows one history request a month**, so it refuses another while one is being
+  generated. The tap logs that as a warning and carries on.
 - **Each app has two bookmarks**, one for `ONGOING` and one for `ONE_TIME_SNAPSHOT` requests:
   `_api_report_date`, the processing date of the newest instance read. Apple dates a history
   instance the day it makes it, and it can arrive after newer daily data has been read. A bookmark

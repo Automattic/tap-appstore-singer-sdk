@@ -235,15 +235,28 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         with self.assertRaisesRegex(APIError, "Could not create a ONGOING analytics report request"):
             self.sync(self.make_stream())
 
-    def test_asks_for_history_on_an_apps_first_run(self):
+    def test_asks_for_history_when_an_app_has_none(self):
         self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
         self.sync(self.make_stream())
         self.assertEqual(self.fake.created, [(APP_ID, "ONE_TIME_SNAPSHOT")])
 
-    def test_asks_for_history_only_on_the_first_run(self):
+    def test_asks_for_history_again_when_it_expired_before_it_was_read(self):
+        self.fake.responses[INSTANCES.format("rep-snapshot")] = page([])
+        self.sync(self.make_stream())
+        self.assertEqual(self.fake.created, [(APP_ID, "ONE_TIME_SNAPSHOT")])
+
+    def test_does_not_ask_for_history_once_it_has_been_read(self):
         self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
-        self.sync(self.make_stream(state=bookmark_state({"ONGOING": "2026-10-02T00:00:00"})))
+        self.sync(self.make_stream(state=bookmark_state({"ONE_TIME_SNAPSHOT": "2026-10-02T00:00:00"})))
         self.assertEqual(self.fake.created, [])
+
+    def test_warns_when_apple_refuses_a_history_request(self):
+        self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
+        self.fake.create_error = APIError("Only one ONE_TIME_SNAPSHOT request is allowed per month", 409)
+        with self.assertLogs("tap_appstore.client", level="WARNING") as logs:
+            records = self.sync(self.make_stream())
+        self.assertTrue(any("Apple refused a history request" in line for line in logs.output))
+        self.assertEqual({r["_instance_id"] for r in records}, {"i-01", "i-03"})
 
     def test_asks_for_history_when_daily_instances_expired_unread(self):
         self.fake.responses[INSTANCES.format("rep-snapshot")] = page([instance("i-02", "2026-09-15")])
@@ -254,19 +267,11 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         self.assertEqual(self.fake.created, [(APP_ID, "ONE_TIME_SNAPSHOT")])
 
     def test_a_newer_history_covers_expired_instances(self):
-        # The history request was generated on 2026-10-02, after the gap, so it holds the missed days.
+        # The history was generated on 2026-10-02, after the oldest daily instance left, so it holds the missed days.
         stream = self.make_stream(state=bookmark_state({"ONGOING": "2026-09-01T00:00:00"}))
         with self.assertLogs("tap_appstore.client", level="ERROR"):
             self.sync(stream)
         self.assertEqual(self.fake.created, [])
-
-    def test_logs_an_error_when_apple_refuses_a_history_request(self):
-        self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
-        self.fake.create_error = APIError("Only one ONE_TIME_SNAPSHOT request is allowed per month", 409)
-        with self.assertLogs("tap_appstore.client", level="ERROR") as logs:
-            records = self.sync(self.make_stream())
-        self.assertTrue(any("could not ask Apple for the history" in line for line in logs.output))
-        self.assertEqual({r["_instance_id"] for r in records}, {"i-01", "i-03"})
 
     def test_fails_when_apple_renames_the_report(self):
         self.fake.responses[REPORTS.format("req-ongoing")] = page(
@@ -325,6 +330,15 @@ class TestDownloadsReport(AnalyticsStreamTestCase):
         self.assertEqual(record["download_type"], "First-time download")
         self.assertEqual(record["pre_order"], "")
         self.assertEqual(record["counts"], 42)
+
+    def test_accepts_both_names_apple_uses_for_the_report(self):
+        stream = self.make_stream(name="downloads_report")
+        self.fake.responses[INSTANCES.format("rep")] = page([instance("i-01", "2026-10-01")])
+        for name in ("App Downloads Standard", "App Store Downloads Standard"):
+            with self.subTest(name):
+                self.fake.responses[REPORTS.format("req")] = page([report("rep", name)])
+                instances = stream._instances({"id": "req"}, "ONGOING")
+                self.assertEqual([i["id"] for i in instances], ["i-01"])
 
 
 if __name__ == "__main__":
