@@ -9,12 +9,14 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
 
-from appstoreconnect.api import APIError
+from appstoreconnect.api import APIError, HttpMethod
 from tap_appstore.client import AppStoreStream
 from tap_appstore.tap import TapAppStore
 
 APP_ID = "1044867788"
-ONGOING = {"app_id": APP_ID, "request_id": "req-ongoing", "access_type": "ONGOING"}
+REQUESTS = f"/v1/apps/{APP_ID}/analyticsReportRequests"
+REPORTS = "/v1/analyticsReportRequests/{}/reports?limit=200"
+INSTANCES = "/v1/analyticsReports/{}/instances?filter[granularity]=DAILY&limit=200"
 
 DISCOVERY_TSV = (
     "Date\tApp Name\tApp Apple Identifier\tEvent\tPage Type\tSource Type\tEngagement Type\t"
@@ -22,8 +24,6 @@ DISCOVERY_TSV = (
     "{date}\tDay One\t1044867788\tImpression\tNo page\tApp Store search\t\tiPhone\tiOS 26.0\tUS\t120\t100\n"
     "{date}\tDay One\t1044867788\tPage view\tProduct page\tApp Store browse\t\tiPad\tiOS 26.0\tGB\t7\t6\n"
 )
-REPORTS = "/v1/analyticsReportRequests/{}/reports?limit=200"
-INSTANCES = "/v1/analyticsReports/{}/instances?filter[granularity]=DAILY&limit=200"
 
 
 def page(items, next_url=None):
@@ -47,27 +47,37 @@ def segment(instance_id):
 
 
 def bookmark_state(bookmarks):
-    """Saved state with a bookmark per request id."""
+    """Saved state with a bookmark per kind of request."""
     return {"bookmarks": {"discovery_engagement_report": {"partitions": [
-        {"context": {"app_id": APP_ID, "request_id": request_id, "access_type": access_type},
+        {"context": {"app_id": APP_ID, "access_type": access_type},
          "replication_key": "_api_report_date", "replication_key_value": value}
-        for (request_id, access_type), value in bookmarks.items()
+        for access_type, value in bookmarks.items()
     ]}}}
 
 
 class FakeAppStoreConnect:
-    """Answers App Store Connect API paths, ignoring the host."""
+    """Answers App Store Connect API paths, ignoring the host, and records the requests it's asked to create."""
 
     def __init__(self, responses, files):
         self.responses = responses
         self.files = files
         self.calls = []
+        self.created = []
+        self.create_error = None
 
-    def _api_call(self, url):
+    def _api_call(self, url, method=HttpMethod.GET, post_data=None):
         parts = urlsplit(url)
         key = parts.path + (f"?{parts.query}" if parts.query else "")
         self.calls.append(key)
-        return self.responses[key]
+        if method != HttpMethod.POST:
+            return self.responses[key]
+        data = post_data["data"]
+        self.created.append((data["relationships"]["app"]["data"]["id"], data["attributes"]["accessType"]))
+        if self.create_error:
+            raise self.create_error
+        request_id = f"req-new-{len(self.created)}"
+        self.responses[REPORTS.format(request_id)] = page([])  # Apple hasn't generated anything yet
+        return {"data": report_request(request_id, data["attributes"]["accessType"])}
 
     def download(self, url, timeout=None):
         response = MagicMock()
@@ -77,7 +87,7 @@ class FakeAppStoreConnect:
 
 def standard_responses():
     return {
-        f"/v1/apps/{APP_ID}/analyticsReportRequests": page([
+        REQUESTS: page([
             report_request("req-ongoing", "ONGOING"),
             report_request("req-snapshot", "ONE_TIME_SNAPSHOT"),
         ]),
@@ -136,11 +146,11 @@ class AnalyticsStreamTestCase(unittest.TestCase):
 
     def bookmarks(self):
         partitions = self.states[-1]["bookmarks"]["discovery_engagement_report"]["partitions"]
-        return {p["context"]["request_id"]: p.get("replication_key_value") for p in partitions}
+        return {p["context"]["access_type"]: p.get("replication_key_value") for p in partitions}
 
 
 class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
-    def test_reads_each_request_with_its_own_bookmark(self):
+    def test_reads_daily_data_and_history_with_a_bookmark_each(self):
         records = self.sync(self.make_stream())
 
         self.assertEqual(
@@ -154,8 +164,9 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
                 ("req-snapshot", "i-02", "2026-09-29", 2),
             ],
         )
-        self.assertEqual(self.bookmarks(), {"req-ongoing": "2026-10-03T00:00:00", "req-snapshot": "2026-10-02T00:00:00"})
+        self.assertEqual(self.bookmarks(), {"ONGOING": "2026-10-03T00:00:00", "ONE_TIME_SNAPSHOT": "2026-10-02T00:00:00"})
         self.assertFalse(any("rep-detailed" in call for call in self.fake.calls))  # Standard only
+        self.assertEqual(self.fake.created, [])  # the app already has both requests
 
         first = records[0]
         self.assertEqual(first["app_id"], APP_ID)
@@ -169,17 +180,17 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         self.assertEqual(first["app_apple_identifier"], 1044867788)
         self.assertEqual(first["vendor_number"], "85219326")
 
-    def test_a_snapshot_is_read_after_the_ongoing_bookmark_passed_it(self):
-        stream = self.make_stream(state=bookmark_state({("req-ongoing", "ONGOING"): "2026-10-03T00:00:00"}))
+    def test_history_is_read_after_newer_daily_data(self):
+        stream = self.make_stream(state=bookmark_state({"ONGOING": "2026-10-03T00:00:00"}))
         records = self.sync(stream)
-        # i-03 was processed on the bookmark's date, so it was already read.
+        # i-03 was processed on the daily bookmark's date, so it was already read.
         self.assertEqual({r["_instance_id"] for r in records}, {"i-02"})
 
     def test_first_run_starts_on_start_date(self):
         records = self.sync(self.make_stream(start_date="2026-10-02T00:00:00Z"))
         self.assertEqual({r["_instance_id"] for r in records}, {"i-02", "i-03"})
 
-    def test_a_failed_run_reads_the_request_again(self):
+    def test_a_failed_run_reads_the_deliveries_again(self):
         i03 = self.fake.files.pop("https://s3.example/i-03.csv.gz")
         stream = self.make_stream()
         stream.STATE_MSG_FREQUENCY = 1
@@ -188,39 +199,74 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
 
         self.fake.files["https://s3.example/i-03.csv.gz"] = i03
         records = self.sync(self.make_stream(state=self.states[-1]))
-        self.assertEqual({r["_instance_id"] for r in records if r["request_id"] == "req-ongoing"}, {"i-01", "i-03"})
+        self.assertEqual({r["_instance_id"] for r in records if r["access_type"] == "ONGOING"}, {"i-01", "i-03"})
 
-    def test_reads_comma_separated_files_with_a_byte_order_mark(self):
-        self.fake.files["https://s3.example/i-01.csv.gz"] = (
-            "\ufeffDate,App Name,App Apple Identifier,Event,Territory,Counts\n"
-            '2026-09-30,"Day One: Journal, Diary",1044867788,Impression,US,5\n'
-        )
-        record = self.sync(self.make_stream())[0]
-        self.assertEqual(record["date"], "2026-09-30")
-        self.assertEqual(record["app_name"], "Day One: Journal, Diary")
-        self.assertEqual(record["counts"], 5)
+    def test_fails_when_a_file_has_no_date_column(self):
+        self.fake.files["https://s3.example/i-01.csv.gz"] = "Date,App Name,Counts\n2026-09-30,Day One,5\n"
+        with self.assertRaisesRegex(ValueError, "tab-separated file with a Date column"):
+            self.sync(self.make_stream())
 
     def test_a_quote_in_a_tab_separated_file_is_a_plain_character(self):
         rows = list(self.make_stream()._read_rows('Date\tApp Name\tCounts\n2026-09-30\t"Day One\t5\n2026-09-30\tDay One\t7\n'))
         self.assertEqual([row["app_name"] for row in rows], ['"Day One', "Day One"])
 
-    def test_extracts_nothing_without_app_ids(self):
-        stream = self.make_stream(app_ids=None)
-        self.assertIsNone(stream.partitions)
-        self.assertEqual(self.sync(stream), [])
+    def test_fails_without_app_ids(self):
+        with self.assertRaisesRegex(ValueError, "needs the app_ids setting"):
+            self.sync(self.make_stream(app_ids=None))
         self.assertEqual(self.fake.calls, [])
 
     def test_accepts_numeric_app_ids(self):
         stream = self.make_stream(app_ids=(1044867788,))
-        self.assertEqual(stream.partitions[0], ONGOING)
+        self.assertEqual(stream.partitions[0], {"app_id": APP_ID, "access_type": "ONGOING"})
 
-    def test_fails_without_an_active_ongoing_request(self):
-        self.fake.responses[f"/v1/apps/{APP_ID}/analyticsReportRequests"] = page([
+    def test_creates_a_daily_request_when_none_is_active(self):
+        self.fake.responses[REQUESTS] = page([
             report_request("req-ongoing", "ONGOING", stopped=True),
             report_request("req-snapshot", "ONE_TIME_SNAPSHOT"),
         ])
-        with self.assertRaisesRegex(RuntimeError, "no active ONGOING analytics report request"):
+        records = self.sync(self.make_stream())
+        self.assertEqual(self.fake.created, [(APP_ID, "ONGOING")])
+        # What the stopped request delivered before it stopped is still read.
+        self.assertEqual({r["_instance_id"] for r in records}, {"i-01", "i-02", "i-03"})
+
+    def test_fails_when_it_cannot_create_a_daily_request(self):
+        self.fake.responses[REQUESTS] = page([])
+        self.fake.create_error = APIError("The API key in use does not allow this request", 403)
+        with self.assertRaisesRegex(APIError, "Could not create a ONGOING analytics report request"):
             self.sync(self.make_stream())
+
+    def test_asks_for_history_on_an_apps_first_run(self):
+        self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
+        self.sync(self.make_stream())
+        self.assertEqual(self.fake.created, [(APP_ID, "ONE_TIME_SNAPSHOT")])
+
+    def test_asks_for_history_only_on_the_first_run(self):
+        self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
+        self.sync(self.make_stream(state=bookmark_state({"ONGOING": "2026-10-02T00:00:00"})))
+        self.assertEqual(self.fake.created, [])
+
+    def test_asks_for_history_when_daily_instances_expired_unread(self):
+        self.fake.responses[INSTANCES.format("rep-snapshot")] = page([instance("i-02", "2026-09-15")])
+        stream = self.make_stream(state=bookmark_state({"ONGOING": "2026-09-01T00:00:00"}))
+        with self.assertLogs("tap_appstore.client", level="ERROR") as logs:
+            self.sync(stream)
+        self.assertIn("processed after 2026-09-01 and before 2026-10-01 were deleted", logs.output[0])
+        self.assertEqual(self.fake.created, [(APP_ID, "ONE_TIME_SNAPSHOT")])
+
+    def test_a_newer_history_covers_expired_instances(self):
+        # The history request was generated on 2026-10-02, after the gap, so it holds the missed days.
+        stream = self.make_stream(state=bookmark_state({"ONGOING": "2026-09-01T00:00:00"}))
+        with self.assertLogs("tap_appstore.client", level="ERROR"):
+            self.sync(stream)
+        self.assertEqual(self.fake.created, [])
+
+    def test_logs_an_error_when_apple_refuses_a_history_request(self):
+        self.fake.responses[REQUESTS] = page([report_request("req-ongoing", "ONGOING")])
+        self.fake.create_error = APIError("Only one ONE_TIME_SNAPSHOT request is allowed per month", 409)
+        with self.assertLogs("tap_appstore.client", level="ERROR") as logs:
+            records = self.sync(self.make_stream())
+        self.assertTrue(any("could not ask Apple for the history" in line for line in logs.output))
+        self.assertEqual({r["_instance_id"] for r in records}, {"i-01", "i-03"})
 
     def test_fails_when_apple_renames_the_report(self):
         self.fake.responses[REPORTS.format("req-ongoing")] = page(
@@ -238,7 +284,8 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
     def test_warns_when_daily_instances_stop_arriving(self):
         with self.assertLogs("tap_appstore.client", level="WARNING") as logs:
             self.sync(self.make_stream())
-        self.assertTrue(any("no instance processed in the last 4 days (newest: 2026-10-03)" in line for line in logs.output))
+        self.assertTrue(any("no daily instance processed in the last 4 days (newest: 2026-10-03)" in line
+                            for line in logs.output))
 
     def test_stays_quiet_while_daily_instances_arrive(self):
         today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -246,12 +293,6 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
         with patch("tap_appstore.client.logger.warning") as warning:
             self.sync(self.make_stream())
         warning.assert_not_called()
-
-    def test_logs_an_error_when_instances_expired_before_they_were_read(self):
-        stream = self.make_stream(state=bookmark_state({("req-ongoing", "ONGOING"): "2026-09-01T00:00:00"}))
-        with self.assertLogs("tap_appstore.client", level="ERROR") as logs:
-            self.sync(stream)
-        self.assertIn("processed after 2026-09-01 and before 2026-10-01 were deleted", logs.output[0])
 
     def test_retries_apple_errors_but_not_bugs(self):
         stream = self.make_stream()
@@ -266,10 +307,11 @@ class TestDiscoveryEngagementReport(AnalyticsStreamTestCase):
 
 
 class TestDownloadsReport(AnalyticsStreamTestCase):
-    def test_matches_either_name_apple_uses(self):
+    def test_reads_app_downloads_standard(self):
         self.fake.responses = {
-            f"/v1/apps/{APP_ID}/analyticsReportRequests": page([report_request("req", "ONGOING")]),
+            REQUESTS: page([report_request("req", "ONGOING"), report_request("req-history", "ONE_TIME_SNAPSHOT")]),
             REPORTS.format("req"): page([report("rep", "App Downloads Standard")]),
+            REPORTS.format("req-history"): page([]),
             INSTANCES.format("rep"): page([instance("i-01", "2026-10-01")]),
             "/v1/analyticsReportInstances/i-01/segments": page([segment("i-01")]),
         }

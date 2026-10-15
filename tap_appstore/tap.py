@@ -46,7 +46,7 @@ class TapAppStore(Tap):
         th.Property(
             "app_ids",
             th.ArrayType(th.CustomType({"type": ["string", "integer"]})),
-            description="Apple IDs of the apps to extract analytics reports for",
+            description="Apple IDs of the apps to extract analytics reports for. The analytics streams fail without it.",
         ),
     ).to_dict()
 

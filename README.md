@@ -49,16 +49,22 @@ tap-appstore --about
 
 `discovery_engagement_report` and `downloads_report` read the [Analytics Reports API](https://developer.apple.com/documentation/appstoreconnectapi/downloading-analytics-reports):
 App Store impressions, product page views and downloads by source, territory and device.
-They need the `app_ids` setting (Apple IDs, such as `["1044867788"]`) and extract nothing without it.
+They need the `app_ids` setting (Apple IDs, such as `["1044867788"]`) and fail without it.
 
-- **Apple must be asked to generate them first.** A key with the Admin role creates an `ONGOING`
-  analytics report request per app (`POST /v1/analyticsReportRequests`), and optionally a
-  `ONE_TIME_SNAPSHOT` for history from January 1, 2024. The tap only reads, and fails if an app
-  in `app_ids` has no active `ONGOING` request. Apple stops an `ONGOING` request that nobody
-  reads for a long time, and deletes report instances after 35 days.
-- **Each request has its own bookmark**, `_api_report_date` (the instance's processing date). It
-  moves only once the request has been read in full, so a failed run reads the request again, and
-  can reread others it had finished.
+- **The tap asks Apple for the reports**, which takes a key with the Admin role. Apple only
+  generates them for an app with an analytics report request. When an app has no active
+  `ONGOING` request (daily data), the tap creates one; Apple also stops one that nobody reads for
+  a long time. On an app's first run, the tap creates a `ONE_TIME_SNAPSHOT` request (history from
+  January 1, 2024) unless the app has one. Apple's first reports take a day or two.
+- **Gaps fill themselves.** Apple deletes report instances after 35 days. If some were deleted
+  before the tap read them, it logs an error and creates a new `ONE_TIME_SNAPSHOT` request, unless
+  one already holds those days. Apple allows one a month.
+- **Each app has two bookmarks**, one for `ONGOING` and one for `ONE_TIME_SNAPSHOT` requests:
+  `_api_report_date`, the processing date of the newest instance read. Apple dates a history
+  instance the day it makes it, and it can arrive after newer daily data has been read. A bookmark
+  moves only once all its instances have been read, so a failed run reads them again.
+- **History is big.** A history instance can run to millions of rows in dozens of files, so the
+  run that reads it takes a while.
 - **Deduplicate before counting.** `_instance_id`, `_segment_id` and `_line_id` identify a row,
   which a rerun can load twice. A later instance can restate earlier dates, so for each
   `app_apple_identifier` and `date`, keep only the rows of the instance with the latest

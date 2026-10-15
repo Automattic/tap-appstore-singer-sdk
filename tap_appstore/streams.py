@@ -282,7 +282,7 @@ class FinancialReportStream(client.AppStoreStream):
 class DiscoveryEngagementReportStream(client.AnalyticsReportStream):
     """App Store impressions, product page views and taps by source, territory and device."""
     name = "discovery_engagement_report"
-    report_names = ("app store discovery and engagement standard",)
+    report_name = "app store discovery and engagement standard"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
@@ -311,8 +311,7 @@ class DiscoveryEngagementReportStream(client.AnalyticsReportStream):
 class DownloadsReportStream(client.AnalyticsReportStream):
     """App Store downloads by download type, source, territory and device."""
     name = "downloads_report"
-    # Apple's docs call this report both "App Store Downloads" and "App Downloads".
-    report_names = ("app store downloads standard", "app downloads standard")
+    report_name = "app downloads standard"
     schema = th.PropertiesList(
         th.Property("_line_id", th.IntegerType),
         th.Property("_time_extracted", th.StringType),
