@@ -45,6 +45,36 @@ tap is available by running:
 tap-appstore --about
 ```
 
+### Analytics reports
+
+`discovery_engagement_report` and `downloads_report` read the [Analytics Reports API](https://developer.apple.com/documentation/appstoreconnectapi/downloading-analytics-reports):
+App Store impressions, product page views and downloads by source, territory and device.
+They need the `app_ids` setting (Apple IDs, such as `["1044867788"]`) and fail without it.
+
+- **The tap asks Apple for the reports**, which takes a key with the Admin role. Apple only
+  generates them for an app with an analytics report request. When an app has no active
+  `ONGOING` request (daily data), the tap creates one; Apple also stops one that nobody reads for
+  a long time. Until it has read an app's history, the tap creates a `ONE_TIME_SNAPSHOT` request
+  (history from January 1, 2024) whenever there is none to read: the app has no history request,
+  or Apple deleted its instances first. Apple's first reports take a day or two.
+- **Gaps fill themselves.** Apple deletes report instances after 35 days. If some were deleted
+  before the tap read them, it logs an error and creates a new `ONE_TIME_SNAPSHOT` request, unless
+  one already holds those days.
+- **Apple allows one history request a month**, so it refuses another while one is being
+  generated. The tap logs that as a warning and carries on.
+- **Each app has two bookmarks**, one for `ONGOING` and one for `ONE_TIME_SNAPSHOT` requests:
+  `_api_report_date`, the processing date of the newest instance read. Apple dates a history
+  instance the day it makes it, and it can arrive after newer daily data has been read. A bookmark
+  moves only once all its instances have been read, so a failed run reads them again.
+- **History is big.** A history instance can run to millions of rows in dozens of files, so the
+  run that reads it takes a while.
+- **Deduplicate before counting.** `_instance_id`, `_segment_id` and `_line_id` identify a row,
+  which a rerun can load twice. A later instance can restate earlier dates, so for each
+  `app_apple_identifier` and `date`, keep only the rows of the instance with the latest
+  `_api_report_date`, preferring `access_type` `ONGOING` when a snapshot instance shares it.
+- Both read Apple's Standard reports. The Detailed versions add fields but drop rows with fewer
+  than five users or devices and add noise.
+
 ### Configure using environment variables
 
 This Singer tap will automatically import any environment variables within the working directory's

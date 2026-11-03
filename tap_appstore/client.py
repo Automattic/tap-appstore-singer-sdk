@@ -9,17 +9,29 @@ import requests
 from singer_sdk.streams import Stream
 import csv
 from io import StringIO
+import zipfile
+import zlib
 from appstoreconnect import Api
-from appstoreconnect.api import APIError
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_not_exception_type
+from appstoreconnect.api import APIError, BASE_API, HttpMethod
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_exception_type
 
 _Auth = Callable[[requests.PreparedRequest], requests.PreparedRequest]
 
 logger = logging.getLogger(__name__)
 
+# Apple's API errors come and go, and so do network errors and damaged downloads.
+# Anything else is a bug that retrying won't fix.
+TRANSIENT_ERRORS = (APIError, OSError, EOFError, zlib.error, zipfile.BadZipFile)
 
-class RetriableAPIException(Exception):
-    pass
+# Every stream calls the same App Store Connect API, so they all retry the same way.
+api_retry = retry(
+    retry=retry_if_exception_type(TRANSIENT_ERRORS),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=3, min=300, max=1800),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+
 
 class AppStoreStream(Stream):
     """AppStore stream class."""
@@ -75,7 +87,7 @@ class AppStoreStream(Stream):
             logger.info(f'Extracting {self.tap_stream_id} starting from {start_date_fmt}')
             data_io = StringIO(report)
             first_line = data_io.readline().strip()
-            fieldnames = [col.strip().replace(' ', '_').replace('-', '_').lower() for col in first_line.split('\t')]
+            fieldnames = [self.column_name(col) for col in first_line.split('\t')]
 
             reader = csv.DictReader(data_io, delimiter='\t', fieldnames=fieldnames)
 
@@ -97,13 +109,7 @@ class AppStoreStream(Stream):
 
             start_date += self.date_increment
 
-    @retry(
-        retry=retry_if_not_exception_type(APIError),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=3, min=300, max=1800),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-
-    )
+    @api_retry
     def _get_report(self, start_date):
         try:
             return self.download_data(start_date.strftime(self.date_format), self.api)
@@ -111,7 +117,12 @@ class AppStoreStream(Stream):
             if str(e).startswith('There were no') and str(e).endswith('for the date specified.') or str(e).startswith('Report is not available yet'):
                 logger.info(str(e))
                 return None
-            raise RetriableAPIException(str(e))
+            raise
+
+    @staticmethod
+    def column_name(header):
+        """Report column header as a field name: 'App Apple Identifier' -> 'app_apple_identifier'."""
+        return header.strip().replace(' ', '_').replace('-', '_').lower()
 
     @staticmethod
     def convert_date(date_str, date_format='%Y-%m-%d'):
@@ -142,3 +153,190 @@ class AppStoreStream(Stream):
                         logger.warning(f"Invalid format for {field}: {record[field]}")
                         raise
 
+
+class AnalyticsReportStream(AppStoreStream):
+    """One report from the App Store Connect Analytics Reports API.
+
+    Apple only generates these reports for an app that has an analytics report request:
+    ONGOING for daily data, ONE_TIME_SNAPSHOT for history. The tap creates them when they're
+    missing or when it finds data it never read, which takes a key with the Admin role. Each
+    app has a partition, so a bookmark, per kind of request: Apple dates a history instance the
+    day it makes it, and it can arrive after newer daily data has been read. The README says
+    how to deduplicate rows.
+    """
+    report_names = ()  # lowercase
+    primary_keys = ['_instance_id', '_segment_id', '_line_id']
+    is_sorted = False  # so a bookmark only moves once all its deliveries have been read
+
+    @property
+    def partitions(self):
+        app_ids = self.config.get('app_ids')
+        if not app_ids:
+            raise ValueError(f'{self.tap_stream_id} needs the app_ids setting: the Apple IDs of the apps to extract.')
+        return [{'app_id': str(app_id), 'access_type': access_type}
+                for app_id in app_ids for access_type in ('ONGOING', 'ONE_TIME_SNAPSHOT')]
+
+    def get_records(self, context: dict = None):
+        app_id, access_type = context['app_id'], context['access_type']
+        report_requests = self._report_requests(app_id, access_type)
+        if access_type == 'ONGOING' and all(r['attributes'].get('stoppedDueToInactivity') for r in report_requests):
+            report_requests.append(self._create_request(app_id, 'ONGOING'))
+        instances = [instance for request in report_requests for instance in self._instances(request, access_type)]
+        bookmark = self.get_context_state(context).get('replication_key_value')
+        bookmark = str(bookmark)[:10] if bookmark else None
+        if access_type == 'ONGOING':
+            self._check_daily_deliveries(app_id, instances, bookmark)
+        elif not bookmark and not instances:
+            # No history read yet, and none left to read: either the app never had a history request or
+            # Apple deleted its instances before the tap ran.
+            self._create_history_request(app_id)
+
+        if bookmark:
+            new = [instance for instance in instances if instance['processing_date'] > bookmark]
+        else:
+            start_date = str(self.config['start_date'])[:10]
+            new = [instance for instance in instances if instance['processing_date'] >= start_date]
+
+        for instance in sorted(new, key=lambda instance: instance['processing_date']):
+            logger.info(f"Extracting {self.tap_stream_id} for app {app_id}: "
+                        f"{access_type} instance processed {instance['processing_date']}")
+            for segment_id, text in self._segments(instance['id']):
+                for line_id, record in enumerate(self._read_rows(text), start=1):
+                    record['_line_id'] = line_id
+                    record['_time_extracted'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+                    record['_api_report_date'] = instance['processing_date']
+                    record['_instance_id'] = instance['id']
+                    record['_segment_id'] = segment_id
+                    record['request_id'] = instance['request_id']
+                    record['vendor_number'] = self.config['vendor']
+                    yield self.post_process(record, context)
+
+    def _check_daily_deliveries(self, app_id, instances, bookmark):
+        """Warn when daily data stops arriving, and ask for history when some of it was never read."""
+        dates = [instance['processing_date'] for instance in instances]
+        stale_before = (datetime.utcnow() - timedelta(days=4)).strftime(self.date_format)
+        if not dates or max(dates) < stale_before:
+            logger.warning(f"{self.tap_stream_id}: app {app_id} has no daily instance processed in the last 4 days "
+                           f"(newest: {max(dates, default='none')}). Apple may have stopped generating it, or it is new.")
+        if not bookmark or not dates:
+            return
+        day_after = (datetime.strptime(bookmark, self.date_format) + self.date_increment).strftime(self.date_format)
+        oldest = min(dates)
+        if oldest <= day_after:
+            return
+        logger.error(f"{self.tap_stream_id}: app {app_id} daily instances processed after {bookmark} and before "
+                     f"{oldest} were deleted before they were read (Apple keeps them 35 days). "
+                     f"Asking for history to recover them.")
+        # History generated on or after the oldest daily instance left holds the days that were missed.
+        for request in self._report_requests(app_id, 'ONE_TIME_SNAPSHOT'):
+            if any(instance['processing_date'] >= oldest for instance in self._instances(request, 'ONE_TIME_SNAPSHOT')):
+                return
+        self._create_history_request(app_id)
+
+    def _create_history_request(self, app_id):
+        """Ask Apple for the app's history.
+
+        Apple allows one history request a month, so it refuses while an earlier one is still
+        being generated, which is fine: that one will do.
+        """
+        try:
+            self._create_request(app_id, 'ONE_TIME_SNAPSHOT')
+        except APIError as e:
+            logger.warning(f'{self.tap_stream_id}: Apple refused a history request for app {app_id}; it allows one '
+                           f'a month, and an earlier one may still be generating: {e}')
+
+    def _report_requests(self, app_id, access_type):
+        """The app's analytics report requests of one kind, stopped ones included."""
+        return [r for r in self._list(f'apps/{app_id}/analyticsReportRequests')
+                if r['attributes']['accessType'] == access_type]
+
+    def _create_request(self, app_id, access_type):
+        """Ask Apple to start generating an app's reports, which takes a key with the Admin role.
+
+        Not retried: a retry after a lost reply could create a second request.
+        """
+        body = {'data': {'type': 'analyticsReportRequests', 'attributes': {'accessType': access_type},
+                         'relationships': {'app': {'data': {'type': 'apps', 'id': app_id}}}}}
+        try:
+            payload = self.api._api_call(f'{BASE_API}/v1/analyticsReportRequests', HttpMethod.POST, body)
+        except APIError as e:
+            raise APIError(f'Could not create a {access_type} analytics report request for app {app_id}: {e}') from e
+        if not isinstance(payload, dict):
+            raise APIError(f'Expected JSON creating a {access_type} request for app {app_id}, got {type(payload).__name__}')
+        logger.info(f'{self.tap_stream_id}: created a {access_type} analytics report request for app {app_id}. '
+                    f'Apple takes a day or two to generate its reports.')
+        return payload['data']
+
+    def _instances(self, request, access_type):
+        """This report's daily instances in one analytics report request."""
+        reports = self._list(f"analyticsReportRequests/{request['id']}/reports?limit=200")
+        report = next((r for r in reports if r['attributes']['name'].strip().lower() in self.report_names), None)
+        if report is None:
+            message = (f"{self.tap_stream_id}: {access_type} request {request['id']} has no report named "
+                       f"{' or '.join(self.report_names)}. It has: {sorted(r['attributes']['name'] for r in reports)}")
+            # A request Apple hasn't generated yet may list no reports; one that lists others had this one renamed.
+            if reports and access_type == 'ONGOING':
+                raise RuntimeError(message)
+            logger.warning(message)
+            return []
+        return [
+            {'id': instance['id'], 'processing_date': instance['attributes']['processingDate'], 'request_id': request['id']}
+            for instance in self._list(f"analyticsReports/{report['id']}/instances?filter[granularity]=DAILY&limit=200")
+        ]
+
+    def _segments(self, instance_id):
+        """(segment id, text) for each segment of one instance, downloaded one at a time."""
+        segments = self._list(f'analyticsReportInstances/{instance_id}/segments')
+        links = {segment['id']: segment['attributes']['url'] for segment in segments}
+        for segment in segments:
+            yield segment['id'], self._download_segment(instance_id, segment['id'], links)
+
+    @api_retry
+    def _download_segment(self, instance_id, segment_id, links):
+        try:
+            return self._get_segment(links[segment_id])
+        except requests.HTTPError:
+            # A link expires five minutes after it's listed, and a large instance can take longer than that
+            # to read, so a refused download lists the segments again and retries right away.
+            segments = self._fetch_all(f'analyticsReportInstances/{instance_id}/segments')
+            fresh = {segment['id']: segment['attributes']['url'] for segment in segments}
+            if segment_id not in fresh:
+                raise APIError(f'Segment {segment_id} of instance {instance_id} is no longer listed')
+            links.update(fresh)
+            return self._get_segment(links[segment_id])
+
+    @staticmethod
+    def _get_segment(url):
+        # A presigned URL: Apple's bearer token must not be sent with it.
+        response = requests.get(url, timeout=300)
+        response.raise_for_status()
+        return Api._unwrap_report_archive(response.content).decode('utf-8')
+
+    def _read_rows(self, text):
+        """Rows of one tab-separated segment file keyed by column name, since Apple may reorder columns."""
+        # A quote in a tab-separated file is just a character; csv's default quoting would
+        # swallow every row after a stray one.
+        reader = csv.reader(StringIO(text), delimiter='\t', quoting=csv.QUOTE_NONE)
+        fieldnames = [self.column_name(col) for col in next(reader, [])]
+        if 'date' not in fieldnames:
+            raise ValueError(f'{self.tap_stream_id}: expected a tab-separated file with a Date column, '
+                             f'got the header {fieldnames}')
+        for row in reader:
+            if row:
+                yield dict(zip(fieldnames, row))
+
+    @api_retry
+    def _list(self, path):
+        return self._fetch_all(path)
+
+    def _fetch_all(self, path):
+        """Every item of a paginated App Store Connect API collection."""
+        url = f'{BASE_API}/v1/{path}'
+        items = []
+        while url:
+            payload = self.api._api_call(url)
+            if not isinstance(payload, dict):  # _api_call passes on any reply that isn't JSON
+                raise APIError(f'Expected JSON from {url}, got {type(payload).__name__}')
+            items.extend(payload.get('data', []))
+            url = payload.get('links', {}).get('next')
+        return items

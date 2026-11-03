@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from datetime import datetime
 
 from appstoreconnect.api import APIError
-from tap_appstore.client import AppStoreStream, RetriableAPIException
+from tap_appstore.client import AppStoreStream
 
 
 class TestAppStoreStream(unittest.TestCase):
@@ -64,30 +64,30 @@ class TestGetReport(unittest.TestCase):
         result = self._call_get_report(error)
         self.assertIsNone(result)
 
-    def test_get_report_bearer_token_error_raises_retriable(self, mock_sleep):
-        """Test APIError with bearer token message raises RetriableAPIException."""
+    def test_get_report_bearer_token_error_is_raised(self, mock_sleep):
+        """Test APIError with bearer token message is raised for the retry to handle."""
         error = APIError("Provide a properly configured and signed bearer token")
-        with self.assertRaises(RetriableAPIException) as ctx:
+        with self.assertRaises(APIError) as ctx:
             self._call_get_report(error)
         self.assertIn("bearer token", str(ctx.exception))
 
-    def test_get_report_agreement_error_raises_retriable(self, mock_sleep):
-        """Test APIError with agreement message raises RetriableAPIException."""
+    def test_get_report_agreement_error_is_raised(self, mock_sleep):
+        """Test APIError with agreement message is raised for the retry to handle."""
         error = APIError("This request requires an in-effect agreement that has not been signed")
-        with self.assertRaises(RetriableAPIException) as ctx:
+        with self.assertRaises(APIError) as ctx:
             self._call_get_report(error)
         self.assertIn("agreement", str(ctx.exception))
 
-    def test_get_report_other_api_error_raises_retriable(self, mock_sleep):
-        """Test other APIError messages are converted to RetriableAPIException."""
+    def test_get_report_other_api_error_is_raised(self, mock_sleep):
+        """Test other APIError messages are raised unchanged."""
         error = APIError("Some other API error")
-        with self.assertRaises(RetriableAPIException) as ctx:
+        with self.assertRaises(APIError) as ctx:
             self._call_get_report(error)
         self.assertEqual(str(ctx.exception), "Some other API error")
 
-    def test_retriable_exception_triggers_retry(self, mock_sleep):
-        """Test that RetriableAPIException triggers retry behavior."""
-        # Simulate: first 2 calls raise API error (converted to retriable), third call succeeds
+    def test_api_errors_are_retried(self, mock_sleep):
+        """Test that APIError triggers retry behavior."""
+        # Simulate: first 2 calls raise API error, third call succeeds
         api_error = APIError("Some API error")
         expected_data = "header1\theader2\nvalue1\tvalue2"
 
@@ -106,6 +106,20 @@ class TestGetReport(unittest.TestCase):
 
         self.assertEqual(result, expected_data)
         self.assertEqual(call_count, 3)  # Retried twice before succeeding
+
+    def test_bugs_are_not_retried(self, mock_sleep):
+        """Test that an error that isn't Apple's, the network's or a damaged download fails at once."""
+        self.mock_stream.download_data.side_effect = KeyError("vendorNumber")
+        with self.assertRaises(KeyError):
+            AppStoreStream._get_report(self.mock_stream, self.test_date)
+        self.assertEqual(self.mock_stream.download_data.call_count, 1)
+
+    def test_retries_give_up_with_the_original_error(self, mock_sleep):
+        """Test that after the last attempt the original APIError is raised, not tenacity's wrapper."""
+        self.mock_stream.download_data.side_effect = APIError("Service unavailable")
+        with self.assertRaisesRegex(APIError, "Service unavailable"):
+            AppStoreStream._get_report(self.mock_stream, self.test_date)
+        self.assertEqual(self.mock_stream.download_data.call_count, 5)
 
 
 if __name__ == "__main__":
